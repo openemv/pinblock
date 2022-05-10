@@ -17,13 +17,17 @@ project(pinblock
 	LANGUAGES C
 )
 
-# TODO: check for OpenEMV crypto_rand
+# Parent scope must provide OpenEMV crypto libraries
+if(NOT TARGET crypto_mem)
+	message(FATAL_ERROR "Parent project must provide crypto libraries")
+endif()
 
 add_library(pinblock OBJECT EXCLUDE_FROM_ALL)
-# TODO: target_sources(pinblock PRIVATE src/asdf)
+target_sources(pinblock PRIVATE src/pinblock.c)
 target_include_directories(pinblock INTERFACE
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
+target_link_libraries(pinblock PRIVATE crypto_mem)
 
 # Configure various compilation properties
 set_target_properties(
@@ -39,4 +43,10 @@ if(BUILD_SHARED_LIBS)
 		PROPERTIES
 			POSITION_INDEPENDENT_CODE True
 	)
+endif()
+
+# Only add tests if this is the top-level project
+if(pinblock_IS_TOP_LEVEL)
+	include(CTest)
+	add_subdirectory(test)
 endif()
