@@ -87,6 +87,47 @@ int pinblock_decode_iso9564_format0(
 );
 
 /**
+ * Encode PIN block in accordance with ISO 9564-1:2017 PIN block format 1
+ *
+ * @param pin PIN buffer containing one PIN digit value per byte
+ * @param pin_len Length of PIN
+ * @param nonce Unique padding field. This field must be unique for every
+ *              occurance of the PIN block and may for example be the
+ *              transaction sequence number (EMV field @c 9F41), time stamp,
+ *              random data, or similar. Use NULL for random padding
+ *              (recommended).
+ * @param nonce_len Length of unique padding field. Must be at least
+ *                  <tt>PINBLOCK_SIZE - 1 - (pin_len / 2)</tt>. Use zero for
+ *                  random padding.
+ * @param pinblock PIN block output of length @ref PINBLOCK_SIZE
+ * @return Zero for success. Less than zero for error.
+ */
+int pinblock_encode_iso9564_format1(
+	const uint8_t* pin,
+	size_t pin_len,
+	const uint8_t* nonce,
+	size_t nonce_len,
+	uint8_t* pinblock
+);
+
+/**
+ * Decode PIN block in accordance with ISO 9564-1:2017 PIN block format 1
+ *
+ * @param pinblock PIN block
+ * @param pinblock_len Length of PIN block in bytes
+ * @param pin PIN buffer output of maximum 12 bytes/digits
+ * @param pin_len Length of PIN buffer output
+ * @return Zero for success. Less than zero for error.
+ *         Greater than zero for invalid/unsupported PIN block format.
+ */
+int pinblock_decode_iso9564_format1(
+	const uint8_t* pinblock,
+	size_t pinblock_len,
+	uint8_t* pin,
+	size_t* pin_len
+);
+
+/**
  * Retrieve PIN block format
  *
  * @param pinblock PIN block
@@ -102,8 +143,9 @@ int pinblock_get_format(const uint8_t* pinblock, size_t pinblock_len);
  * @param pinblock PIN block
  * @param pinblock_len Length of PIN block in bytes
  * @param other Secondary field that may be relevant for PIN block decoding.
- *              For example, for ISO 9564-1:2017 PIN block format 0, this will
- *              be the PAN in compressed numeric format (EMV format "cn").
+ *              For ISO 9564-1:2017 PIN block format 0, this will be be the
+ *              PAN in compressed numeric format (EMV format "cn").
+ *              For ISO 9564-1:2017 PIN block format 1, this is ignored.
  * @param other_len Length of @p other in bytes
  * @param format PIN block format output
  * @param pin PIN buffer output of maximum 12 bytes/digits

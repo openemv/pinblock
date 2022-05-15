@@ -9,6 +9,10 @@ cmake_minimum_required(VERSION 3.16)
 
 if(BUILD_TESTING)
 	add_executable(pinblock_format0_test pinblock_format0_test.c)
-	target_link_libraries(pinblock_format0_test pinblock crypto_mem)
+	target_link_libraries(pinblock_format0_test pinblock crypto_mem crypto_rand)
 	add_test(pinblock_format0_test pinblock_format0_test)
+
+	add_executable(pinblock_format1_test pinblock_format1_test.c)
+	target_link_libraries(pinblock_format1_test pinblock crypto_mem crypto_rand)
+	add_test(pinblock_format1_test pinblock_format1_test)
 endif()

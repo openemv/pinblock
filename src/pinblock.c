@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "crypto_mem.h"
+#include "crypto_rand.h"
 
 static void pinblock_pack_pin(uint8_t format, const uint8_t* pin, size_t pin_len, uint8_t fill_digit, uint8_t* pinblock)
 {
@@ -54,6 +55,54 @@ static void pinblock_pack_pin(uint8_t format, const uint8_t* pin, size_t pin_len
 	if (pin_len & 0x1) { // Odd PIN length
 		// Pad remaining nibble if odd PIN length
 		pinblock[(pin_len >> 1) + 1] |= fill_digit;
+	}
+}
+
+static void pinblock_pack_pin_with_nonce(uint8_t format, const uint8_t* pin, size_t pin_len, const uint8_t* nonce, size_t nonce_len, uint8_t* pinblock)
+{
+	// Sanitise PIN length
+	pin_len &= 0x0F;
+
+	// Pack PIN digits
+	// See ISO 9564-1:2017 9.3.3
+	// See ISO 9564-1:2017 9.3.5.2
+	pinblock[0] = (format << 4) | pin_len;
+	for (size_t i = 0; i < pin_len; ++i) {
+		if ((i & 0x1) == 0) { // Even digit index
+			// Most significant nibble
+			pinblock[(i >> 1) + 1] = pin[i] << 4;
+		} else { // Odd digit index
+			// Least significant nibble
+			pinblock[(i >> 1) + 1] |= pin[i] & 0x0F;
+		}
+	}
+
+	// Pad using nonce
+	for (size_t i = pin_len; i < (PINBLOCK_SIZE - 1) * 2 && nonce_len; ++i) {
+		uint8_t digit;
+
+		// Extract nonce digit
+		size_t nonce_idx = i - pin_len;
+		if ((nonce_idx & 0x1) == 0) { // Even digit index
+			// Most significant nibble
+			digit = nonce[nonce_idx >> 1] >> 4;
+		} else { // Odd digit index
+			// Least significant nibble
+			digit = nonce[nonce_idx >> 1] & 0xF;
+			--nonce_len;
+		}
+		++nonce_idx;
+
+		// Pack nonce digit into PIN block
+		// See ISO 9564-1:2017 9.3.3
+		// See ISO 9564-1:2017 9.3.5.2
+		if ((i & 0x1) == 0) { // Even digit index
+			// Most significant nibble
+			pinblock[(i >> 1) + 1] = digit << 4;
+		} else { // Odd digit index
+			// Least significant nibble
+			pinblock[(i >> 1) + 1] |= digit;
+		}
 	}
 }
 
@@ -234,6 +283,101 @@ int pinblock_decode_iso9564_format0(
 	return 0;
 }
 
+int pinblock_encode_iso9564_format1(
+	const uint8_t* pin,
+	size_t pin_len,
+	const uint8_t* nonce,
+	size_t nonce_len,
+	uint8_t* pinblock
+)
+{
+	uint8_t nonce_field[PINBLOCK_SIZE];
+
+	if (!pin || !pin_len || !pinblock) {
+		return -1;
+	}
+
+	// Validate PIN length
+	// See ISO 9564-1:2017 8.1
+	// See ISO 9564-1:2017 9.1
+	if (pin_len < 4 || pin_len > 12) {
+		return -2;
+	}
+
+	// Validate nonce length
+	// See ISO 9564-1:2017 9.3.3
+	if (nonce && nonce_len && nonce_len < PINBLOCK_SIZE - 1 - (pin_len / 2)) {
+		return -3;
+	}
+
+	// Build nonce field
+	if (!nonce) {
+		// No nonce provided; build random nonce
+		nonce_len = PINBLOCK_SIZE - 1 - (pin_len / 2);
+		crypto_rand(nonce_field, nonce_len);
+	} else {
+		// Populate nonce field in reverse to ensure that the least significant
+		// bytes are used if the nonce is actually the transaction sequence
+		// number (EMV field 9F41)
+		for (size_t i = 0; i < sizeof(nonce_field) && i < nonce_len; ++i) {
+			nonce_field[i] = nonce[nonce_len - 1 - i];
+		}
+	}
+
+	// Build PIN field
+	// See ISO 9564-1:2017 9.3.3
+	pinblock_pack_pin_with_nonce(PINBLOCK_ISO9564_FORMAT_1, pin, pin_len, nonce_field, nonce_len, pinblock);
+
+	crypto_cleanse(nonce_field, sizeof(nonce_field));
+
+	return 0;
+}
+
+int pinblock_decode_iso9564_format1(
+	const uint8_t* pinblock,
+	size_t pinblock_len,
+	uint8_t* pin,
+	size_t* pin_len
+)
+{
+	uint8_t format;
+	size_t decoded_pin_len;
+
+	if (!pinblock || !pinblock_len || !pin || !pin_len) {
+		return -1;
+	}
+	*pin_len = 0;
+
+	if (pinblock_len != PINBLOCK_SIZE) {
+		// Invalid PIN block size
+		return 1;
+	}
+
+	// First 4 bits are the control field indicating the PIN block format
+	// See ISO 9564-1:2017 9.3.1
+	format = pinblock[0] >> 4;
+	if (format != PINBLOCK_ISO9564_FORMAT_1) {
+		// Incorrect PIN block format
+		return 2;
+	}
+
+	// Second 4 bits indicate PIN length
+	// See ISO 9564-1:2017 9.3.3
+	decoded_pin_len = pinblock[0] & 0xF;
+
+	// Validate PIN length
+	// See ISO 9564-1:2017 8.1
+	// See ISO 9564-1:2017 9.1
+	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
+		return -2;
+	}
+
+	pinblock_unpack_pin(pinblock, pin, decoded_pin_len);
+	*pin_len = decoded_pin_len;
+
+	return 0;
+}
+
 int pinblock_get_format(const uint8_t* pinblock, size_t pinblock_len)
 {
 	uint8_t format;
@@ -284,6 +428,14 @@ int pinblock_decode(
 				pinblock_len,
 				other,
 				other_len,
+				pin,
+				pin_len
+			);
+
+		case PINBLOCK_ISO9564_FORMAT_1:
+			return pinblock_decode_iso9564_format1(
+				pinblock,
+				pinblock_len,
 				pin,
 				pin_len
 			);

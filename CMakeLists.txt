@@ -18,7 +18,7 @@ project(pinblock
 )
 
 # Parent scope must provide OpenEMV crypto libraries
-if(NOT TARGET crypto_mem)
+if(NOT TARGET crypto_mem OR NOT TARGET crypto_rand)
 	message(FATAL_ERROR "Parent project must provide crypto libraries")
 endif()
 
@@ -27,7 +27,7 @@ target_sources(pinblock PRIVATE src/pinblock.c)
 target_include_directories(pinblock INTERFACE
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
-target_link_libraries(pinblock PRIVATE crypto_mem)
+target_link_libraries(pinblock PRIVATE crypto_mem crypto_rand)
 
 # Configure various compilation properties
 set_target_properties(
