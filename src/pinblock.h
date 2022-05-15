@@ -128,6 +128,37 @@ int pinblock_decode_iso9564_format1(
 );
 
 /**
+ * Encode PIN block in accordance with ISO 9564-1:2017 PIN block format 2
+ *
+ * @param pin PIN buffer containing one PIN digit value per byte
+ * @param pin_len Length of PIN
+ * @param pinblock PIN block output of length @ref PINBLOCK_SIZE
+ * @return Zero for success. Less than zero for error.
+ */
+int pinblock_encode_iso9564_format2(
+	const uint8_t* pin,
+	size_t pin_len,
+	uint8_t* pinblock
+);
+
+/**
+ * Decode PIN block in accordance with ISO 9564-1:2017 PIN block format 2
+ *
+ * @param pinblock PIN block
+ * @param pinblock_len Length of PIN block in bytes
+ * @param pin PIN buffer output of maximum 12 bytes/digits
+ * @param pin_len Length of PIN buffer output
+ * @return Zero for success. Less than zero for error.
+ *         Greater than zero for invalid/unsupported PIN block format.
+ */
+int pinblock_decode_iso9564_format2(
+	const uint8_t* pinblock,
+	size_t pinblock_len,
+	uint8_t* pin,
+	size_t* pin_len
+);
+
+/**
  * Retrieve PIN block format
  *
  * @param pinblock PIN block

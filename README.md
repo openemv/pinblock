@@ -38,7 +38,6 @@ add_subdirectory(pinblock/test)
 
 Roadmap
 -------
-* Implement ISO 9564-1:2017 PIN block format 2
 * Implement ISO 9564-1:2017 PIN block format 3
 * Implement ISO 9564-1:2017 PIN block format 4
 * Consider implementing other proprietary PIN block formats like those of
