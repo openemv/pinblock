@@ -159,6 +159,51 @@ int pinblock_decode_iso9564_format2(
 );
 
 /**
+ * Encode PIN block in accordance with ISO 9564-1:2017 PIN block format 3
+ *
+ * @param pin PIN buffer containing one PIN digit value per byte
+ * @param pin_len Length of PIN
+ * @param pan PAN buffer in compressed numeric format (EMV format "cn";
+ *            nibble-per-digit; left justified; padded with trailing 0xF
+ *            nibbles). This is the same format as EMV field @c 5A which
+ *            typically contains the application PAN.
+ * @param pan_len Length of PAN buffer in bytes
+ * @param pinblock PIN block output of length @ref PINBLOCK_SIZE
+ * @return Zero for success. Less than zero for error.
+ */
+int pinblock_encode_iso9564_format3(
+	const uint8_t* pin,
+	size_t pin_len,
+	const uint8_t* pan,
+	size_t pan_len,
+	uint8_t* pinblock
+);
+
+/**
+ * Decode PIN block in accordance with ISO 9564-1:2017 PIN block format 3
+ *
+ * @param pinblock PIN block
+ * @param pinblock_len Length of PIN block in bytes
+ * @param pan PAN buffer in compressed numeric format (EMV format "cn";
+ *            nibble-per-digit; left justified; padded with trailing 0xF
+ *            nibbles). This is the same format as EMV field @c 5A which
+ *            typically contains the application PAN.
+ * @param pan_len Length of PAN buffer in bytes
+ * @param pin PIN buffer output of maximum 12 bytes/digits
+ * @param pin_len Length of PIN buffer output
+ * @return Zero for success. Less than zero for error.
+ *         Greater than zero for invalid/unsupported PIN block format.
+ */
+int pinblock_decode_iso9564_format3(
+	const uint8_t* pinblock,
+	size_t pinblock_len,
+	const uint8_t* pan,
+	size_t pan_len,
+	uint8_t* pin,
+	size_t* pin_len
+);
+
+/**
  * Retrieve PIN block format
  *
  * @param pinblock PIN block

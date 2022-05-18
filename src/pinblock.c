@@ -447,6 +447,133 @@ int pinblock_decode_iso9564_format2(
 	return 0;
 }
 
+int pinblock_encode_iso9564_format3(
+	const uint8_t* pin,
+	size_t pin_len,
+	const uint8_t* pan,
+	size_t pan_len,
+	uint8_t* pinblock
+)
+{
+	uint8_t nonce_input[10];
+	uint8_t nonce[5];
+	uint8_t panfield[PINBLOCK_SIZE];
+
+	if (!pin || !pin_len || !pan || !pan_len || !pinblock) {
+		return -1;
+	}
+
+	// Validate PIN length
+	// See ISO 9564-1:2017 8.1
+	// See ISO 9564-1:2017 9.1
+	if (pin_len < 4 || pin_len > 12) {
+		return -2;
+	}
+
+	// Build 5 byte nonce consisting only of nibbles from 0xA to 0xF
+	// using input of 10 random bytes
+	// See ISO 9564-1:2017 9.3.5.2
+	crypto_rand(nonce_input, sizeof(nonce_input));
+	for (size_t i = 0; i < sizeof(nonce); ++i) {
+		uint8_t scaled_nonce;
+
+		// Scale nonce input to range from 0xA to 0xF
+		scaled_nonce = ((((uint16_t)nonce_input[i * 2]) * 6) >> 8) + 0xA;
+
+		// Pack most significant nibble
+		nonce[i] = scaled_nonce << 4;
+
+		// Scale next nonce input to range from 0xA to 0xF
+		scaled_nonce = ((((uint16_t)nonce_input[i * 2 + 1]) * 6) >> 8) + 0xA;
+
+		// Pack most significant nibble
+		nonce[i] |= scaled_nonce & 0xF;
+	}
+
+	// Build PIN field
+	// See ISO 9564-1:2017 9.3.5.2
+	pinblock_pack_pin_with_nonce(PINBLOCK_ISO9564_FORMAT_3, pin, pin_len, nonce, sizeof(nonce), pinblock);
+
+	// Build PAN field
+	// See ISO 9564-1:2017 9.3.5.3
+	pinblock_pack_pan(pan, pan_len, panfield);
+
+	// Build PIN block
+	// See ISO 9564-1:2017 9.3.5.1
+	crypto_xor(pinblock, panfield, PINBLOCK_SIZE);
+
+	crypto_cleanse(nonce_input, sizeof(nonce_input));
+	crypto_cleanse(nonce, sizeof(nonce));
+	crypto_cleanse(panfield, sizeof(panfield));
+
+	return 0;
+}
+
+int pinblock_decode_iso9564_format3(
+	const uint8_t* pinblock,
+	size_t pinblock_len,
+	const uint8_t* pan,
+	size_t pan_len,
+	uint8_t* pin,
+	size_t* pin_len
+)
+{
+	uint8_t format;
+	size_t decoded_pin_len;
+	uint8_t pinfield[PINBLOCK_SIZE];
+	uint8_t panfield[PINBLOCK_SIZE];
+
+	if (!pinblock || !pinblock_len || !pan || !pan_len || !pin || !pin_len) {
+		return -1;
+	}
+	*pin_len = 0;
+
+	if (pinblock_len != PINBLOCK_SIZE) {
+		// Invalid PIN block size
+		return 1;
+	}
+
+	// First 4 bits are the control field indicating the PIN block format
+	// See ISO 9564-1:2017 9.3.1
+	format = pinblock[0] >> 4;
+	if (format != PINBLOCK_ISO9564_FORMAT_3) {
+		// Incorrect PIN block format
+		return 2;
+	}
+
+	// Second 4 bits indicate PIN length
+	// See ISO 9564-1:2017 9.3.5.2
+	decoded_pin_len = pinblock[0] & 0xF;
+
+	// Validate PIN length
+	// See ISO 9564-1:2017 8.1
+	// See ISO 9564-1:2017 9.1
+	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
+		return -2;
+	}
+
+	// Extract PIN field from PIN block
+	// See ISO 9564-1:2017 9.3.5.1
+	memcpy(pinfield, pinblock, PINBLOCK_SIZE);
+	pinblock_pack_pan(pan, pan_len, panfield);
+	crypto_xor(pinfield, panfield, PINBLOCK_SIZE);
+
+	// Sanity check
+	if (memcmp(pinblock, pinfield, 2) != 0) {
+		crypto_cleanse(pinfield, sizeof(pinfield));
+		crypto_cleanse(panfield, sizeof(panfield));
+		return -3;
+	}
+
+	pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	*pin_len = decoded_pin_len;
+
+	crypto_cleanse(pinfield, sizeof(pinfield));
+	crypto_cleanse(panfield, sizeof(panfield));
+
+	return 0;
+}
+
 int pinblock_get_format(const uint8_t* pinblock, size_t pinblock_len)
 {
 	uint8_t format;
@@ -513,6 +640,16 @@ int pinblock_decode(
 			return pinblock_decode_iso9564_format2(
 				pinblock,
 				pinblock_len,
+				pin,
+				pin_len
+			);
+
+		case PINBLOCK_ISO9564_FORMAT_3:
+			return pinblock_decode_iso9564_format3(
+				pinblock,
+				pinblock_len,
+				other,
+				other_len,
 				pin,
 				pin_len
 			);
