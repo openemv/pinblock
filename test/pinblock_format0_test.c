@@ -43,7 +43,7 @@ int main(void)
 {
 	int r;
 	uint8_t encoded_pinblock[PINBLOCK_SIZE];
-	uint8_t format;
+	unsigned int format;
 	uint8_t decoded_pin[12];
 	size_t decoded_pin_len = 0;
 

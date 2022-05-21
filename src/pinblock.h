@@ -223,7 +223,7 @@ int pinblock_get_format(const uint8_t* pinblock, size_t pinblock_len);
  *              PAN in compressed numeric format (EMV format "cn").
  *              For ISO 9564-1:2017 PIN block format 1, this is ignored.
  * @param other_len Length of @p other in bytes
- * @param format PIN block format output
+ * @param format PIN block format output. See @ref pinblock_format_t.
  * @param pin PIN buffer output of maximum 12 bytes/digits
  * @param pin_len Length of PIN buffer output
  * @return Zero for success. Less than zero for error.
@@ -234,7 +234,7 @@ int pinblock_decode(
 	size_t pinblock_len,
 	const uint8_t* other,
 	size_t other_len,
-	uint8_t* format,
+	unsigned int* format,
 	uint8_t* pin,
 	size_t* pin_len
 );

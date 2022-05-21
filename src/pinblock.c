@@ -600,7 +600,7 @@ int pinblock_decode(
 	size_t pinblock_len,
 	const uint8_t* other,
 	size_t other_len,
-	uint8_t* format,
+	unsigned int* format,
 	uint8_t* pin,
 	size_t* pin_len
 )
