@@ -23,4 +23,8 @@ if(BUILD_TESTING)
 	add_executable(pinblock_format3_test pinblock_format3_test.c)
 	target_link_libraries(pinblock_format3_test pinblock crypto_mem crypto_rand)
 	add_test(pinblock_format3_test pinblock_format3_test)
+
+	add_executable(pinblock_format4_test pinblock_format4_test.c)
+	target_link_libraries(pinblock_format4_test pinblock crypto_mem crypto_rand)
+	add_test(pinblock_format4_test pinblock_format4_test)
 endif()

@@ -29,6 +29,7 @@
 __BEGIN_DECLS
 
 #define PINBLOCK_SIZE (8) ///< PIN block size (in bytes) for ISO 9564-1:2017 format 0, 1, 2, 3
+#define PINBLOCK128_SIZE (16) ///< PIN block size (in bytes) for ISO 9564-1:2017 format 4
 
 /**
  * PIN block formats
@@ -39,6 +40,7 @@ enum pinblock_format_t {
 	PINBLOCK_ISO9564_FORMAT_1 = 1, ///< ISO 9564-1:2017 format 1
 	PINBLOCK_ISO9564_FORMAT_2 = 2, ///< ISO 9564-1:2017 format 2
 	PINBLOCK_ISO9564_FORMAT_3 = 3, ///< ISO 9564-1:2017 format 3
+	PINBLOCK_ISO9564_FORMAT_4 = 4, ///< ISO 9564-1:2017 format 4
 };
 
 /**
@@ -204,6 +206,63 @@ int pinblock_decode_iso9564_format3(
 );
 
 /**
+ * Encode PIN field in accordance with ISO 9564-1:2017 PIN block format 4
+ *
+ * @note It is the caller's responsibility to encipher and combine the PIN
+ *       field and PAN field in accordance with ISO 9564-1:2017 9.4.2.3
+ *
+ * @param pin PIN buffer containing one PIN digit value per byte
+ * @param pin_len Length of PIN
+ * @param pinfield PIN field output of length @ref PINBLOCK128_SIZE
+ * @return Zero for success. Less than zero for error.
+ */
+int pinblock_encode_iso9564_format4_pinfield(
+	const uint8_t* pin,
+	size_t pin_len,
+	uint8_t* pinfield
+);
+
+/**
+ * Encode PAN field in accordance with ISO 9564-1:2017 PIN block format 4
+ *
+ * @note It is the caller's responsibility to encipher and combine the PIN
+ *       field and PAN field in accordance with ISO 9564-1:2017 9.4.2.3
+ *
+ * @param pan PAN buffer in compressed numeric format (EMV format "cn";
+ *            nibble-per-digit; left justified; padded with trailing 0xF
+ *            nibbles). This is the same format as EMV field @c 5A which
+ *            typically contains the application PAN.
+ * @param pan_len Length of PAN buffer in bytes
+ * @param panfield PAN field output of length @ref PINBLOCK128_SIZE
+ * @return Zero for success. Less than zero for error.
+ */
+int pinblock_encode_iso9564_format4_panfield(
+	const uint8_t* pan,
+	size_t pan_len,
+	uint8_t* panfield
+);
+
+/**
+ * Decode PIN field in accordance with ISO 9564-1:2017 PIN block format 4
+ *
+ * @note It is the caller's responsibility to decipher and separate the PIN
+ *       field and PAN field in accordance with ISO 9564-1:2017 9.4.2.4
+ *
+ * @param pinfield PIN field
+ * @param pinfield_len Length of PIN field in bytes
+ * @param pin PIN buffer output of maximum 12 bytes/digits
+ * @param pin_len Length of PIN buffer output
+ * @return Zero for success. Less than zero for error.
+ *         Greater than zero for invalid/unsupported PIN block format.
+ */
+int pinblock_decode_iso9564_format4_pinfield(
+	const uint8_t* pinfield,
+	size_t pinfield_len,
+	uint8_t* pin,
+	size_t* pin_len
+);
+
+/**
  * Retrieve PIN block format
  *
  * @param pinblock PIN block
@@ -219,9 +278,10 @@ int pinblock_get_format(const uint8_t* pinblock, size_t pinblock_len);
  * @param pinblock PIN block
  * @param pinblock_len Length of PIN block in bytes
  * @param other Secondary field that may be relevant for PIN block decoding.
- *              For ISO 9564-1:2017 PIN block format 0, this will be be the
- *              PAN in compressed numeric format (EMV format "cn").
- *              For ISO 9564-1:2017 PIN block format 1, this is ignored.
+ *              For ISO 9564-1:2017 PIN block format 0 and format 3, this will
+ *              be the PAN in compressed numeric format (EMV format "cn").
+ *              For ISO 9564-1:2017 PIN block format 1, format 2 and format 4,
+ *              this is ignored.
  * @param other_len Length of @p other in bytes
  * @param format PIN block format output. See @ref pinblock_format_t.
  * @param pin PIN buffer output of maximum 12 bytes/digits
