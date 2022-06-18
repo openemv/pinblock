@@ -106,7 +106,7 @@ static void pinblock_pack_pin_with_nonce(uint8_t format, const uint8_t* pin, siz
 	}
 }
 
-static void pinblock_unpack_pin(const uint8_t* pinblock, uint8_t* pin, size_t pin_len)
+static int pinblock_unpack_pin(const uint8_t* pinblock, uint8_t* pin, size_t pin_len)
 {
 	// For ISO 956401:2017 PIN block formats, the PIN starts at the second byte
 	for (size_t i = 0; i < pin_len; ++i) {
@@ -121,9 +121,16 @@ static void pinblock_unpack_pin(const uint8_t* pinblock, uint8_t* pin, size_t pi
 			digit = pinblock[(i >> 1) + 1] & 0x0F;
 		}
 
+		if (digit > 0x9) {
+			// Invalid digit; either decrypt key or PAN were likely incorrect
+			return -1;
+		}
+
 		*pin = digit;
 		++pin;
 	}
+
+	return 0;
 }
 
 static void pinblock_pack_pan(const uint8_t* pan, size_t pan_len, uint8_t* panfield)
@@ -227,6 +234,7 @@ int pinblock_decode_iso9564_format0(
 	size_t* pin_len
 )
 {
+	int r;
 	uint8_t format;
 	size_t decoded_pin_len;
 	uint8_t pinfield[PINBLOCK_SIZE];
@@ -269,18 +277,28 @@ int pinblock_decode_iso9564_format0(
 
 	// Sanity check
 	if (memcmp(pinblock, pinfield, 2) != 0) {
-		crypto_cleanse(pinfield, sizeof(pinfield));
-		crypto_cleanse(panfield, sizeof(panfield));
-		return -3;
+		r = -3;
+		goto error;
 	}
 
-	pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	if (r) {
+		r = -4;
+		goto error;
+	}
 	*pin_len = decoded_pin_len;
 
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	crypto_cleanse(pin, 4);
+exit:
 	crypto_cleanse(pinfield, sizeof(pinfield));
 	crypto_cleanse(panfield, sizeof(panfield));
 
-	return 0;
+	return r;
 }
 
 int pinblock_encode_iso9564_format1(
@@ -340,6 +358,7 @@ int pinblock_decode_iso9564_format1(
 	size_t* pin_len
 )
 {
+	int r;
 	uint8_t format;
 	size_t decoded_pin_len;
 
@@ -372,10 +391,21 @@ int pinblock_decode_iso9564_format1(
 		return -2;
 	}
 
-	pinblock_unpack_pin(pinblock, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(pinblock, pin, decoded_pin_len);
+	if (r) {
+		r = -3;
+		goto error;
+	}
 	*pin_len = decoded_pin_len;
 
-	return 0;
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	crypto_cleanse(pin, 4);
+exit:
+	return r;
 }
 
 int pinblock_encode_iso9564_format2(
@@ -409,6 +439,7 @@ int pinblock_decode_iso9564_format2(
 	size_t* pin_len
 )
 {
+	int r;
 	uint8_t format;
 	size_t decoded_pin_len;
 
@@ -441,10 +472,21 @@ int pinblock_decode_iso9564_format2(
 		return -2;
 	}
 
-	pinblock_unpack_pin(pinblock, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(pinblock, pin, decoded_pin_len);
+	if (r) {
+		r = -3;
+		goto error;
+	}
 	*pin_len = decoded_pin_len;
 
-	return 0;
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	crypto_cleanse(pin, 4);
+exit:
+	return r;
 }
 
 int pinblock_encode_iso9564_format3(
@@ -518,6 +560,7 @@ int pinblock_decode_iso9564_format3(
 	size_t* pin_len
 )
 {
+	int r;
 	uint8_t format;
 	size_t decoded_pin_len;
 	uint8_t pinfield[PINBLOCK_SIZE];
@@ -560,18 +603,28 @@ int pinblock_decode_iso9564_format3(
 
 	// Sanity check
 	if (memcmp(pinblock, pinfield, 2) != 0) {
-		crypto_cleanse(pinfield, sizeof(pinfield));
-		crypto_cleanse(panfield, sizeof(panfield));
-		return -3;
+		r = -3;
+		goto error;
 	}
 
-	pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	if (r) {
+		r = -4;
+		goto error;
+	}
 	*pin_len = decoded_pin_len;
 
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	crypto_cleanse(pin, 4);
+exit:
 	crypto_cleanse(pinfield, sizeof(pinfield));
 	crypto_cleanse(panfield, sizeof(panfield));
 
-	return 0;
+	return r;
 }
 
 int pinblock_encode_iso9564_format4_pinfield(
@@ -713,6 +766,7 @@ int pinblock_decode_iso9564_format4_pinfield(
 	size_t* pin_len
 )
 {
+	int r;
 	uint8_t format;
 	size_t decoded_pin_len;
 
@@ -746,10 +800,21 @@ int pinblock_decode_iso9564_format4_pinfield(
 	}
 
 	// Decode PIN
-	pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	if (r) {
+		r = -3;
+		goto error;
+	}
 	*pin_len = decoded_pin_len;
 
-	return 0;
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	crypto_cleanse(pin, 4);
+exit:
+	return r;
 }
 
 int pinblock_get_format(const uint8_t* pinblock, size_t pinblock_len)
