@@ -16,8 +16,9 @@ Dependencies
 ------------
 
 * C11 compiler such as GCC or Clang
-* CMake
-* OpenEMV common crypto abstraction
+* [CMake](https://cmake.org/)
+* [OpenEMV common crypto abstraction](https://github.com/openemv/crypto)
+  (to be provided as CMake targets by parent project)
 
 Usage
 -----
@@ -44,6 +45,6 @@ Roadmap
 License
 -------
 
-Copyright (c) 2022 Leon Lynch.
+Copyright (c) 2022 [Leon Lynch](https://github.com/leonlynch).
 
 This project is licensed under the terms of the LGPL v2.1 license. See LICENSE file.
