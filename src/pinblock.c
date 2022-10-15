@@ -106,10 +106,47 @@ static void pinblock_pack_pin_with_nonce(uint8_t format, const uint8_t* pin, siz
 	}
 }
 
-static int pinblock_unpack_pin(const uint8_t* pinblock, uint8_t* pin, size_t pin_len)
+static int pinblock_unpack_pin(uint8_t format, const uint8_t* pinblock, uint8_t* pin, size_t* pin_len)
 {
+	size_t decoded_pin_len;
+
+	switch (format) {
+		case PINBLOCK_ISO9564_FORMAT_0:
+		case PINBLOCK_ISO9564_FORMAT_1:
+		case PINBLOCK_ISO9564_FORMAT_2:
+		case PINBLOCK_ISO9564_FORMAT_3:
+		case PINBLOCK_ISO9564_FORMAT_4:
+			break;
+
+		default:
+			// Unsupported PIN block format
+			return -3;
+	}
+
+	// First 4 bits are the control field indicating the PIN block format
+	// See ISO 9564-1:2017 9.3.1
+	if (pinblock[0] >> 4 != format) {
+		// Incorrect PIN block format
+		return 2;
+	}
+
+	// Second 4 bits indicate PIN length
+	// See ISO 9564-1:2017 9.3.2.2
+	// See ISO 9564-1:2017 9.3.3
+	// See ISO 9564-1:2017 9.3.4
+	// See ISO 9564-1:2017 9.3.5.2
+	// See ISO 9564-1:2017 9.4.2.2.2
+	decoded_pin_len = pinblock[0] & 0xF;
+
+	// Validate PIN length
+	// See ISO 9564-1:2017 8.1
+	// See ISO 9564-1:2017 9.1
+	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
+		return -4;
+	}
+
 	// For ISO 956401:2017 PIN block formats, the PIN starts at the second byte
-	for (size_t i = 0; i < pin_len; ++i) {
+	for (size_t i = 0; i < decoded_pin_len; ++i) {
 		uint8_t digit;
 
 		// Extract PIN digit
@@ -123,13 +160,14 @@ static int pinblock_unpack_pin(const uint8_t* pinblock, uint8_t* pin, size_t pin
 
 		if (digit > 0x9) {
 			// Invalid digit; either decrypt key or PAN were likely incorrect
-			return -1;
+			return -5;
 		}
 
 		*pin = digit;
 		++pin;
 	}
 
+	*pin_len = decoded_pin_len;
 	return 0;
 }
 
@@ -235,8 +273,6 @@ int pinblock_decode_iso9564_format0(
 )
 {
 	int r;
-	uint8_t format;
-	size_t decoded_pin_len;
 	uint8_t pinfield[PINBLOCK_SIZE];
 	uint8_t panfield[PINBLOCK_SIZE];
 
@@ -250,25 +286,6 @@ int pinblock_decode_iso9564_format0(
 		return 1;
 	}
 
-	// First 4 bits are the control field indicating the PIN block format
-	// See ISO 9564-1:2017 9.3.1
-	format = pinblock[0] >> 4;
-	if (format != PINBLOCK_ISO9564_FORMAT_0) {
-		// Incorrect PIN block format
-		return 2;
-	}
-
-	// Second 4 bits indicate PIN length
-	// See ISO 9564-1:2017 9.3.2.2
-	decoded_pin_len = pinblock[0] & 0xF;
-
-	// Validate PIN length
-	// See ISO 9564-1:2017 8.1
-	// See ISO 9564-1:2017 9.1
-	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
-		return -2;
-	}
-
 	// Extract PIN field from PIN block
 	// See ISO 9564-1:2017 9.3.2.1
 	memcpy(pinfield, pinblock, PINBLOCK_SIZE);
@@ -277,16 +294,14 @@ int pinblock_decode_iso9564_format0(
 
 	// Sanity check
 	if (memcmp(pinblock, pinfield, 2) != 0) {
-		r = -3;
+		r = -2;
 		goto error;
 	}
 
-	r = pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(PINBLOCK_ISO9564_FORMAT_0, pinfield, pin, pin_len);
 	if (r) {
-		r = -4;
 		goto error;
 	}
-	*pin_len = decoded_pin_len;
 
 	// Success
 	r = 0;
@@ -359,8 +374,6 @@ int pinblock_decode_iso9564_format1(
 )
 {
 	int r;
-	uint8_t format;
-	size_t decoded_pin_len;
 
 	if (!pinblock || !pinblock_len || !pin || !pin_len) {
 		return -1;
@@ -372,31 +385,10 @@ int pinblock_decode_iso9564_format1(
 		return 1;
 	}
 
-	// First 4 bits are the control field indicating the PIN block format
-	// See ISO 9564-1:2017 9.3.1
-	format = pinblock[0] >> 4;
-	if (format != PINBLOCK_ISO9564_FORMAT_1) {
-		// Incorrect PIN block format
-		return 2;
-	}
-
-	// Second 4 bits indicate PIN length
-	// See ISO 9564-1:2017 9.3.3
-	decoded_pin_len = pinblock[0] & 0xF;
-
-	// Validate PIN length
-	// See ISO 9564-1:2017 8.1
-	// See ISO 9564-1:2017 9.1
-	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
-		return -2;
-	}
-
-	r = pinblock_unpack_pin(pinblock, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(PINBLOCK_ISO9564_FORMAT_1, pinblock, pin, pin_len);
 	if (r) {
-		r = -3;
 		goto error;
 	}
-	*pin_len = decoded_pin_len;
 
 	// Success
 	r = 0;
@@ -440,8 +432,6 @@ int pinblock_decode_iso9564_format2(
 )
 {
 	int r;
-	uint8_t format;
-	size_t decoded_pin_len;
 
 	if (!pinblock || !pinblock_len || !pin || !pin_len) {
 		return -1;
@@ -453,31 +443,10 @@ int pinblock_decode_iso9564_format2(
 		return 1;
 	}
 
-	// First 4 bits are the control field indicating the PIN block format
-	// See ISO 9564-1:2017 9.3.1
-	format = pinblock[0] >> 4;
-	if (format != PINBLOCK_ISO9564_FORMAT_2) {
-		// Incorrect PIN block format
-		return 2;
-	}
-
-	// Second 4 bits indicate PIN length
-	// See ISO 9564-1:2017 9.3.4
-	decoded_pin_len = pinblock[0] & 0xF;
-
-	// Validate PIN length
-	// See ISO 9564-1:2017 8.1
-	// See ISO 9564-1:2017 9.1
-	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
-		return -2;
-	}
-
-	r = pinblock_unpack_pin(pinblock, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(PINBLOCK_ISO9564_FORMAT_2, pinblock, pin, pin_len);
 	if (r) {
-		r = -3;
 		goto error;
 	}
-	*pin_len = decoded_pin_len;
 
 	// Success
 	r = 0;
@@ -561,8 +530,6 @@ int pinblock_decode_iso9564_format3(
 )
 {
 	int r;
-	uint8_t format;
-	size_t decoded_pin_len;
 	uint8_t pinfield[PINBLOCK_SIZE];
 	uint8_t panfield[PINBLOCK_SIZE];
 
@@ -576,25 +543,6 @@ int pinblock_decode_iso9564_format3(
 		return 1;
 	}
 
-	// First 4 bits are the control field indicating the PIN block format
-	// See ISO 9564-1:2017 9.3.1
-	format = pinblock[0] >> 4;
-	if (format != PINBLOCK_ISO9564_FORMAT_3) {
-		// Incorrect PIN block format
-		return 2;
-	}
-
-	// Second 4 bits indicate PIN length
-	// See ISO 9564-1:2017 9.3.5.2
-	decoded_pin_len = pinblock[0] & 0xF;
-
-	// Validate PIN length
-	// See ISO 9564-1:2017 8.1
-	// See ISO 9564-1:2017 9.1
-	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
-		return -2;
-	}
-
 	// Extract PIN field from PIN block
 	// See ISO 9564-1:2017 9.3.5.1
 	memcpy(pinfield, pinblock, PINBLOCK_SIZE);
@@ -603,16 +551,14 @@ int pinblock_decode_iso9564_format3(
 
 	// Sanity check
 	if (memcmp(pinblock, pinfield, 2) != 0) {
-		r = -3;
+		r = -2;
 		goto error;
 	}
 
-	r = pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(PINBLOCK_ISO9564_FORMAT_3, pinfield, pin, pin_len);
 	if (r) {
-		r = -4;
 		goto error;
 	}
-	*pin_len = decoded_pin_len;
 
 	// Success
 	r = 0;
@@ -767,8 +713,6 @@ int pinblock_decode_iso9564_format4_pinfield(
 )
 {
 	int r;
-	uint8_t format;
-	size_t decoded_pin_len;
 
 	if (!pinfield || !pin || !pin_len) {
 		return -1;
@@ -780,32 +724,11 @@ int pinblock_decode_iso9564_format4_pinfield(
 		return 1;
 	}
 
-	// First 4 bits are the control field indicating the PIN block format
-	// See ISO 9564-1:2017 9.3.1
-	format = pinfield[0] >> 4;
-	if (format != PINBLOCK_ISO9564_FORMAT_4) {
-		// Incorrect PIN block format
-		return 2;
-	}
-
-	// Second 4 bits indicate PIN length
-	// See ISO 9564-1:2017 9.3.2.2
-	decoded_pin_len = pinfield[0] & 0xF;
-
-	// Validate PIN length
-	// See ISO 9564-1:2017 8.1
-	// See ISO 9564-1:2017 9.1
-	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
-		return -2;
-	}
-
 	// Decode PIN
-	r = pinblock_unpack_pin(pinfield, pin, decoded_pin_len);
+	r = pinblock_unpack_pin(PINBLOCK_ISO9564_FORMAT_4, pinfield, pin, pin_len);
 	if (r) {
-		r = -3;
 		goto error;
 	}
-	*pin_len = decoded_pin_len;
 
 	// Success
 	r = 0;
@@ -909,8 +832,6 @@ int pinblock_decode(
 		}
 
 	} else if (pinblock_len == PINBLOCK128_SIZE) {
-		// First 4 bits are the control field indicating the PIN block format
-		// See ISO 9564-1:2017 9.4.2.2.2
 		// First 4 bits are the control field indicating the PIN block format
 		// See ISO 9564-1:2017 9.4.2.2.2
 		*format = pinblock[0] >> 4;
