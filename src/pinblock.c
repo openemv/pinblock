@@ -145,11 +145,14 @@ static int pinblock_unpack_pin(uint8_t format, const uint8_t* pinblock, uint8_t*
 		return -4;
 	}
 
-	// For ISO 956401:2017 PIN block formats, the PIN starts at the second byte
-	for (size_t i = 0; i < decoded_pin_len; ++i) {
+	// Decode PIN and validate padding
+	// For ISO 9564-1:2017 PIN block formats, the PIN starts at the second byte
+	// and padding is only up to the first 8 bytes (16 digits), even for PIN
+	// block format 4
+	for (size_t i = 0; i < 13; ++i) { // Iterate from 3rd digit to 16th digit
 		uint8_t digit;
 
-		// Extract PIN digit
+		// Extract digit
 		if ((i & 0x1) == 0) { // Even digit index
 			// Most significant nibble
 			digit = pinblock[(i >> 1) + 1] >> 4;
@@ -158,13 +161,46 @@ static int pinblock_unpack_pin(uint8_t format, const uint8_t* pinblock, uint8_t*
 			digit = pinblock[(i >> 1) + 1] & 0x0F;
 		}
 
-		if (digit > 0x9) {
-			// Invalid digit; either decrypt key or PAN were likely incorrect
-			return -5;
-		}
+		if (i < decoded_pin_len) {
+			// Validate PIN digit
+			if (digit > 0x9) {
+				// Invalid PIN digit; either decrypt key or PAN were likely incorrect
+				return -5;
+			}
 
-		*pin = digit;
-		++pin;
+			// Append PIN digit
+			*pin = digit;
+			++pin;
+		} else {
+			// Validate padding digit
+			switch (format) {
+				case PINBLOCK_ISO9564_FORMAT_0:
+				case PINBLOCK_ISO9564_FORMAT_2:
+					// See ISO 9564-1:2017 9.3.2.2
+					// See ISO 9564-1:2017 9.3.4
+					if (digit != 0xF) {
+						// Invalid padding digit; either decrypt key or PAN were likely incorrect
+						return -6;
+					}
+					break;
+
+				case PINBLOCK_ISO9564_FORMAT_3:
+					// See ISO 9564-1:2017 9.3.5.2
+					if (digit < 0xA) {
+						// Invalid padding digit; either decrypt key or PAN were likely incorrect
+						return -6;
+					}
+					break;
+
+				case PINBLOCK_ISO9564_FORMAT_4:
+					// See ISO 9564-1:2017 9.4.2.2.2
+					if (digit != 0xA) {
+						// Invalid padding digit; either decrypt key or PAN were likely incorrect
+						return -6;
+					}
+					break;
+			}
+		}
 	}
 
 	*pin_len = decoded_pin_len;

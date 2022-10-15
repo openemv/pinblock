@@ -29,6 +29,9 @@ static const uint8_t pin[] = { 0x01, 0x02, 0x03, 0x04, 0x05 };
 static const uint8_t pan[] = { 0x40, 0x12, 0x34, 0x56, 0x78, 0x90, 0x9F };
 static const uint8_t pinblock_verify[] = { 0x35, 0x12 }; // This is as much as we can directly compare
 
+// Incorrect test PAN
+static const uint8_t bad_pan[] = { 0x40, 0x88, 0x88, 0x88, 0x88, 0x88, 0x9F };
+
 static void print_buf(const char* buf_name, const void* buf, size_t length)
 {
 	const uint8_t* ptr = buf;
@@ -272,6 +275,26 @@ int main(void)
 		fprintf(stderr, "Decoded PIN is incorrect\n");
 		print_buf("decoded_pin", decoded_pin, sizeof(decoded_pin));
 		print_buf("pin", pin, sizeof(pin));
+		r = 1;
+		goto exit;
+	}
+
+	// Test padding validation
+	r = pinblock_decode_iso9564_format3(
+		pinblock,
+		sizeof(pinblock),
+		bad_pan,
+		sizeof(bad_pan),
+		decoded_pin,
+		&decoded_pin_len
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_decode_iso9564_format3() unexpectedly succeeded with bad PAN\n");
+		r = 1;
+		goto exit;
+	}
+	if (decoded_pin_len != 0) {
+		fprintf(stderr, "Decoded PIN length is incorrect\n");
 		r = 1;
 		goto exit;
 	}

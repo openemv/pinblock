@@ -245,6 +245,25 @@ int main(void)
 		goto exit;
 	}
 
+	// Test padding validation
+	pinfield[6] ^= 1;
+	r = pinblock_decode_iso9564_format4_pinfield(
+		pinfield,
+		sizeof(pinfield),
+		decoded_pin,
+		&decoded_pin_len
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_decode_iso9564_format4_pinfield() unexpectedly succeeded with bad PIN block\n");
+		r = 1;
+		goto exit;
+	}
+	if (decoded_pin_len != 0) {
+		fprintf(stderr, "Decoded PIN length is incorrect\n");
+		r = 1;
+		goto exit;
+	}
+
 	printf("All tests passed.\n");
 	r = 0;
 	goto exit;
