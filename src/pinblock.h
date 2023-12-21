@@ -2,7 +2,7 @@
  * @file pinblock.h
  * @brief ISO 9564-1:2017 PIN block format implementation
  *
- * Copyright (c) 2022 Leon Lynch
+ * Copyright 2022 Leon Lynch
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
