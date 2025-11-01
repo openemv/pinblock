@@ -91,7 +91,6 @@ static void pinblock_pack_pin_with_nonce(uint8_t format, const uint8_t* pin, siz
 			digit = nonce[nonce_idx >> 1] & 0xF;
 			--nonce_len;
 		}
-		++nonce_idx;
 
 		// Pack nonce digit into PIN block
 		// See ISO 9564-1:2017 9.3.3
@@ -502,7 +501,7 @@ int pinblock_encode_iso9564_format3(
 	uint8_t* pinblock
 )
 {
-	uint8_t nonce_input[10];
+	int r;
 	uint8_t nonce[5];
 	uint8_t panfield[PINBLOCK_SIZE];
 
@@ -518,23 +517,35 @@ int pinblock_encode_iso9564_format3(
 	}
 
 	// Build 5 byte nonce consisting only of nibbles from 0xA to 0xF
-	// using input of 10 random bytes
 	// See ISO 9564-1:2017 9.3.5.2
-	crypto_rand(nonce_input, sizeof(nonce_input));
 	for (size_t i = 0; i < sizeof(nonce); ++i) {
-		uint8_t scaled_nonce;
+		uint8_t nonce_digit;
 
-		// Scale nonce input to range from 0xA to 0xF
-		scaled_nonce = ((((uint16_t)nonce_input[i * 2]) * 6) >> 8) + 0xA;
+		r = crypto_rand_byte(0xA, 0xF);
+		if (r < 0) {
+			return -3;
+		}
+		if (r < 0xA || r > 0xF) {
+			return -4;
+		}
+		nonce_digit = r;
 
 		// Pack most significant nibble
-		nonce[i] = scaled_nonce << 4;
+		nonce[i] = nonce_digit << 4;
 
-		// Scale next nonce input to range from 0xA to 0xF
-		scaled_nonce = ((((uint16_t)nonce_input[i * 2 + 1]) * 6) >> 8) + 0xA;
+		r = crypto_rand_byte(0xA, 0xF);
+		if (r < 0) {
+			return -5;
+		}
+		if (r < 0xA || r > 0xF) {
+			return -6;
+		}
+		nonce_digit = r;
 
-		// Pack most significant nibble
-		nonce[i] |= scaled_nonce & 0xF;
+		// Pack least significant nibble
+		nonce[i] |= nonce_digit & 0xF;
+
+		crypto_cleanse(&nonce_digit, sizeof(nonce_digit));
 	}
 
 	// Build PIN field
@@ -549,7 +560,6 @@ int pinblock_encode_iso9564_format3(
 	// See ISO 9564-1:2017 9.3.5.1
 	crypto_xor(pinblock, panfield, PINBLOCK_SIZE);
 
-	crypto_cleanse(nonce_input, sizeof(nonce_input));
 	crypto_cleanse(nonce, sizeof(nonce));
 	crypto_cleanse(panfield, sizeof(panfield));
 
