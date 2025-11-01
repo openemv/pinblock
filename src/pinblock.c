@@ -27,7 +27,13 @@
 #include "crypto_mem.h"
 #include "crypto_rand.h"
 
-static void pinblock_pack_pin(uint8_t format, const uint8_t* pin, size_t pin_len, uint8_t fill_digit, uint8_t* pinblock)
+static void pinblock_pack_pin(
+	uint8_t format,
+	const uint8_t* pin,
+	size_t pin_len,
+	uint8_t fill_digit,
+	uint8_t* pinblock
+)
 {
 	// Sanitise PIN length
 	pin_len &= 0x0F;
@@ -58,7 +64,14 @@ static void pinblock_pack_pin(uint8_t format, const uint8_t* pin, size_t pin_len
 	}
 }
 
-static void pinblock_pack_pin_with_nonce(uint8_t format, const uint8_t* pin, size_t pin_len, const uint8_t* nonce, size_t nonce_len, uint8_t* pinblock)
+static void pinblock_pack_pin_with_nonce(
+	uint8_t format,
+	const uint8_t* pin,
+	size_t pin_len,
+	const uint8_t* nonce,
+	size_t nonce_len,
+	uint8_t* pinblock
+)
 {
 	// Sanitise PIN length
 	pin_len &= 0x0F;
@@ -105,7 +118,12 @@ static void pinblock_pack_pin_with_nonce(uint8_t format, const uint8_t* pin, siz
 	}
 }
 
-static int pinblock_unpack_pin(uint8_t format, const uint8_t* pinblock, uint8_t* pin, size_t* pin_len)
+static int pinblock_unpack_pin(
+	uint8_t format,
+	const uint8_t* pinblock,
+	uint8_t* pin,
+	size_t* pin_len
+)
 {
 	size_t decoded_pin_len;
 
@@ -206,7 +224,11 @@ static int pinblock_unpack_pin(uint8_t format, const uint8_t* pinblock, uint8_t*
 	return 0;
 }
 
-static void pinblock_pack_pan(const uint8_t* pan, size_t pan_len, uint8_t* panfield)
+static void pinblock_pack_pan(
+	const uint8_t* pan,
+	size_t pan_len,
+	uint8_t* panfield
+)
 {
 	size_t panfield_len = PINBLOCK_SIZE;
 	size_t pan_idx = 0;
@@ -661,7 +683,7 @@ int pinblock_encode_iso9564_format4_panfield(
 	// See ISO 9564-1:2017 9.4.2.2.3
 	memset(panfield, 0, PINBLOCK128_SIZE);
 	if (pan_len < 6 ||
-		(pan_len == 6 &&(pan[pan_len - 1] & 0xF) == 0xF)
+		(pan_len == 6 && (pan[pan_len - 1] & 0xF) == 0xF)
 	) {
 		// If PAN is less than 12 digits, M is zero
 		// PAN digits will be right justified and left padded with zeros
