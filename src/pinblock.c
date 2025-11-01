@@ -2,7 +2,7 @@
  * @file pinblock.c
  * @brief ISO 9564-1:2017 PIN block format implementation
  *
- * Copyright 2022 Leon Lynch
+ * Copyright 2022, 2025 Leon Lynch
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -344,7 +344,7 @@ int pinblock_decode_iso9564_format0(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 4);
+	crypto_cleanse(pin, 12);
 exit:
 	crypto_cleanse(pinfield, sizeof(pinfield));
 	crypto_cleanse(panfield, sizeof(panfield));
@@ -431,7 +431,7 @@ int pinblock_decode_iso9564_format1(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 4);
+	crypto_cleanse(pin, 12);
 exit:
 	return r;
 }
@@ -489,7 +489,7 @@ int pinblock_decode_iso9564_format2(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 4);
+	crypto_cleanse(pin, 12);
 exit:
 	return r;
 }
@@ -601,7 +601,7 @@ int pinblock_decode_iso9564_format3(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 4);
+	crypto_cleanse(pin, 12);
 exit:
 	crypto_cleanse(pinfield, sizeof(pinfield));
 	crypto_cleanse(panfield, sizeof(panfield));
@@ -771,7 +771,7 @@ int pinblock_decode_iso9564_format4_pinfield(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 4);
+	crypto_cleanse(pin, 12);
 exit:
 	return r;
 }
