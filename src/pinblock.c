@@ -27,7 +27,7 @@
 #include "crypto_mem.h"
 #include "crypto_rand.h"
 
-static void pinblock_pack_pin(
+static int pinblock_pack_pin(
 	uint8_t format,
 	const uint8_t* pin,
 	size_t pin_len,
@@ -46,6 +46,11 @@ static void pinblock_pack_pin(
 	// See ISO 9564-1:2017 9.3.2.2
 	pinblock[0] = (format << 4) | pin_len;
 	for (size_t i = 0; i < pin_len; ++i) {
+		if (pin[i] > 9) {
+			// Invalid PIN digit
+			return 1;
+		}
+
 		if ((i & 0x1) == 0) { // Even digit index
 			// Most significant nibble
 			pinblock[(i >> 1) + 1] = pin[i] << 4;
@@ -62,9 +67,11 @@ static void pinblock_pack_pin(
 		// Pad remaining nibble if odd PIN length
 		pinblock[(pin_len >> 1) + 1] |= fill_digit;
 	}
+
+	return 0;
 }
 
-static void pinblock_pack_pin_with_nonce(
+static int pinblock_pack_pin_with_nonce(
 	uint8_t format,
 	const uint8_t* pin,
 	size_t pin_len,
@@ -81,6 +88,11 @@ static void pinblock_pack_pin_with_nonce(
 	// See ISO 9564-1:2017 9.3.5.2
 	pinblock[0] = (format << 4) | pin_len;
 	for (size_t i = 0; i < pin_len; ++i) {
+		if (pin[i] > 9) {
+			// Invalid PIN digit
+			return 1;
+		}
+
 		if ((i & 0x1) == 0) { // Even digit index
 			// Most significant nibble
 			pinblock[(i >> 1) + 1] = pin[i] << 4;
@@ -116,6 +128,8 @@ static void pinblock_pack_pin_with_nonce(
 			pinblock[(i >> 1) + 1] |= digit;
 		}
 	}
+
+	return 0;
 }
 
 static int pinblock_unpack_pin(
@@ -290,6 +304,7 @@ int pinblock_encode_iso9564_format0(
 	uint8_t* pinblock
 )
 {
+	int r;
 	uint8_t panfield[PINBLOCK_SIZE];
 
 	if (!pin || !pin_len || !pan || !pan_len || !pinblock) {
@@ -300,12 +315,17 @@ int pinblock_encode_iso9564_format0(
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
 	if (pin_len < 4 || pin_len > 12) {
-		return -2;
+		r = -2;
+		goto error;
 	}
 
 	// Build PIN field
 	// See ISO 9564-1:2017 9.3.2.2
-	pinblock_pack_pin(PINBLOCK_ISO9564_FORMAT_0, pin, pin_len, 0xF, pinblock);
+	r = pinblock_pack_pin(PINBLOCK_ISO9564_FORMAT_0, pin, pin_len, 0xF, pinblock);
+	if (r) {
+		r = -3;
+		goto error;
+	}
 
 	// Build PAN field
 	// See ISO 9564-1:2017 9.3.2.3
@@ -315,9 +335,17 @@ int pinblock_encode_iso9564_format0(
 	// See ISO 9564-1:2017 9.3.2.1
 	crypto_xor(pinblock, panfield, PINBLOCK_SIZE);
 
-	crypto_cleanse(panfield, sizeof(panfield));
+	// Success
+	r = 0;
+	goto exit;
 
-	return 0;
+error:
+	// Ensure that PIN block is unusable on error
+	crypto_rand(pinblock, PINBLOCK_SIZE);
+exit:
+	// Cleanup
+	crypto_cleanse(panfield, sizeof(panfield));
+	return r;
 }
 
 int pinblock_decode_iso9564_format0(
@@ -381,6 +409,7 @@ int pinblock_encode_iso9564_format1(
 	uint8_t* pinblock
 )
 {
+	int r;
 	uint8_t nonce_field[PINBLOCK_SIZE];
 
 	if (!pin || !pin_len || !pinblock) {
@@ -391,13 +420,15 @@ int pinblock_encode_iso9564_format1(
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
 	if (pin_len < 4 || pin_len > 12) {
-		return -2;
+		r = -2;
+		goto error;
 	}
 
 	// Validate nonce length
 	// See ISO 9564-1:2017 9.3.3
 	if (nonce && nonce_len && nonce_len < PINBLOCK_SIZE - 1 - (pin_len / 2)) {
-		return -3;
+		r = -3;
+		goto error;
 	}
 
 	// Build nonce field
@@ -418,9 +449,17 @@ int pinblock_encode_iso9564_format1(
 	// See ISO 9564-1:2017 9.3.3
 	pinblock_pack_pin_with_nonce(PINBLOCK_ISO9564_FORMAT_1, pin, pin_len, nonce_field, nonce_len, pinblock);
 
-	crypto_cleanse(nonce_field, sizeof(nonce_field));
+	// Success
+	r = 0;
+	goto exit;
 
-	return 0;
+error:
+	// Ensure that PIN block is unusable on error
+	crypto_rand(pinblock, PINBLOCK_SIZE);
+exit:
+	// Cleanup
+	crypto_cleanse(nonce_field, sizeof(nonce_field));
+	return r;
 }
 
 int pinblock_decode_iso9564_format1(
@@ -463,6 +502,8 @@ int pinblock_encode_iso9564_format2(
 	uint8_t* pinblock
 )
 {
+	int r;
+
 	if (!pin || !pin_len || !pinblock) {
 		return -1;
 	}
@@ -471,14 +512,27 @@ int pinblock_encode_iso9564_format2(
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
 	if (pin_len < 4 || pin_len > 12) {
-		return -2;
+		r = -2;
+		goto error;
 	}
 
 	// Build PIN field
 	// See ISO 9564-1:2017 9.3.4
-	pinblock_pack_pin(PINBLOCK_ISO9564_FORMAT_2, pin, pin_len, 0xF, pinblock);
+	r = pinblock_pack_pin(PINBLOCK_ISO9564_FORMAT_2, pin, pin_len, 0xF, pinblock);
+	if (r) {
+		r = -3;
+		goto error;
+	}
 
-	return 0;
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	// Ensure that PIN block is unusable on error
+	crypto_rand(pinblock, PINBLOCK_SIZE);
+exit:
+	return r;
 }
 
 int pinblock_decode_iso9564_format2(
@@ -535,7 +589,8 @@ int pinblock_encode_iso9564_format3(
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
 	if (pin_len < 4 || pin_len > 12) {
-		return -2;
+		r = -2;
+		goto error;
 	}
 
 	// Build 5 byte nonce consisting only of nibbles from 0xA to 0xF
@@ -545,10 +600,12 @@ int pinblock_encode_iso9564_format3(
 
 		r = crypto_rand_byte(0xA, 0xF);
 		if (r < 0) {
-			return -3;
+			r = -3;
+			goto error;
 		}
 		if (r < 0xA || r > 0xF) {
-			return -4;
+			r = -4;
+			goto error;
 		}
 		nonce_digit = r;
 
@@ -557,10 +614,12 @@ int pinblock_encode_iso9564_format3(
 
 		r = crypto_rand_byte(0xA, 0xF);
 		if (r < 0) {
-			return -5;
+			r = -5;
+			goto error;
 		}
 		if (r < 0xA || r > 0xF) {
-			return -6;
+			r = -6;
+			goto error;
 		}
 		nonce_digit = r;
 
@@ -572,7 +631,11 @@ int pinblock_encode_iso9564_format3(
 
 	// Build PIN field
 	// See ISO 9564-1:2017 9.3.5.2
-	pinblock_pack_pin_with_nonce(PINBLOCK_ISO9564_FORMAT_3, pin, pin_len, nonce, sizeof(nonce), pinblock);
+	r = pinblock_pack_pin_with_nonce(PINBLOCK_ISO9564_FORMAT_3, pin, pin_len, nonce, sizeof(nonce), pinblock);
+	if (r) {
+		r = -7;
+		goto error;
+	}
 
 	// Build PAN field
 	// See ISO 9564-1:2017 9.3.5.3
@@ -582,10 +645,18 @@ int pinblock_encode_iso9564_format3(
 	// See ISO 9564-1:2017 9.3.5.1
 	crypto_xor(pinblock, panfield, PINBLOCK_SIZE);
 
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	// Ensure that PIN block is unusable on error
+	crypto_rand(pinblock, PINBLOCK_SIZE);
+exit:
+	// Cleanup
 	crypto_cleanse(nonce, sizeof(nonce));
 	crypto_cleanse(panfield, sizeof(panfield));
-
-	return 0;
+	return r;
 }
 
 int pinblock_decode_iso9564_format3(
@@ -647,6 +718,8 @@ int pinblock_encode_iso9564_format4_pinfield(
 	uint8_t* pinfield
 )
 {
+	int r;
+
 	if (!pin || !pin_len || !pinfield) {
 		return -1;
 	}
@@ -655,18 +728,31 @@ int pinblock_encode_iso9564_format4_pinfield(
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
 	if (pin_len < 4 || pin_len > 12) {
-		return -2;
+		r = -2;
+		goto error;
 	}
 
 	// Build PIN field (first 8 bytes)
 	// See ISO 9564-1:2017 9.4.2.2.2
-	pinblock_pack_pin(PINBLOCK_ISO9564_FORMAT_4, pin, pin_len, 0xA, pinfield);
+	r = pinblock_pack_pin(PINBLOCK_ISO9564_FORMAT_4, pin, pin_len, 0xA, pinfield);
+	if (r) {
+		r = -3;
+		goto error;
+	}
 
 	// Build PIN field (last 8 bytes)
 	// See ISO 9564-1:2017 9.4.2.2.2
 	crypto_rand(pinfield + PINBLOCK128_SIZE / 2, PINBLOCK128_SIZE / 2);
 
-	return 0;
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	// Ensure that PIN field is unusable on error
+	crypto_rand(pinfield, PINBLOCK128_SIZE);
+exit:
+	return r;
 }
 
 int pinblock_encode_iso9564_format4_panfield(
