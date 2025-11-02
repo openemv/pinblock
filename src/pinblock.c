@@ -151,7 +151,7 @@ static int pinblock_unpack_pin(
 
 		default:
 			// Unsupported PIN block format
-			return -3;
+			return -4;
 	}
 
 	// First 4 bits are the control field indicating the PIN block format
@@ -173,7 +173,7 @@ static int pinblock_unpack_pin(
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
 	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
-		return -4;
+		return -5;
 	}
 
 	// Decode PIN and validate padding
@@ -196,7 +196,7 @@ static int pinblock_unpack_pin(
 			// Validate PIN digit
 			if (digit > 0x9) {
 				// Invalid PIN digit; either decrypt key or PAN were likely incorrect
-				return -5;
+				return -6;
 			}
 
 			// Append PIN digit
@@ -211,7 +211,7 @@ static int pinblock_unpack_pin(
 					// See ISO 9564-1:2017 9.3.4
 					if (digit != 0xF) {
 						// Invalid padding digit; either decrypt key or PAN were likely incorrect
-						return -6;
+						return -7;
 					}
 					break;
 
@@ -219,7 +219,7 @@ static int pinblock_unpack_pin(
 					// See ISO 9564-1:2017 9.3.5.2
 					if (digit < 0xA) {
 						// Invalid padding digit; either decrypt key or PAN were likely incorrect
-						return -6;
+						return -7;
 					}
 					break;
 
@@ -227,7 +227,7 @@ static int pinblock_unpack_pin(
 					// See ISO 9564-1:2017 9.4.2.2.2
 					if (digit != 0xA) {
 						// Invalid padding digit; either decrypt key or PAN were likely incorrect
-						return -6;
+						return -7;
 					}
 					break;
 			}
@@ -238,7 +238,7 @@ static int pinblock_unpack_pin(
 	return 0;
 }
 
-static void pinblock_pack_pan(
+static int pinblock_pack_pan(
 	const uint8_t* pan,
 	size_t pan_len,
 	uint8_t* panfield
@@ -270,15 +270,28 @@ static void pinblock_pack_pan(
 		}
 		++pan_idx;
 
-		// Skip over padding
-		if (digit == 0xF) {
-			continue;
-		}
-
-		// Skip over check digit
+		// Padding is only allowed after check digit
 		if (!check_digit_found) {
+			if (digit >= 0xA && digit <= 0xE) {
+				// Invalid PAN digit
+				return 1;
+			}
+
+			// Skip over trailing padding
+			if (digit == 0xF) {
+				continue;
+			}
+
+			// Skip over check digit
 			check_digit_found = true;
 			continue;
+
+		} else {
+			// No more padding or check digit
+			if (digit > 9) {
+				// Invalid PAN digit
+				return 2;
+			}
 		}
 
 		// Pack digit into PAN field
@@ -294,6 +307,20 @@ static void pinblock_pack_pan(
 		}
 		++panfield_idx;
 	}
+
+	// Validate PAN length
+	// ISO 9564-1:2017 does not specify minimum or maximum PAN lengths.
+	// However, ISO 7812 specifies that PANs are 10 - 19 digits and the number
+	// of available PAN digits may impact the PAN encoding. It is therefore
+	// reasonable to reject invalid PAN lengths.
+	if (panfield_idx < 10) {
+		return 3;
+	}
+	if (panfield_idx > 19) {
+		return 4;
+	}
+
+	return 0;
 }
 
 int pinblock_encode_iso9564_format0(
@@ -329,7 +356,11 @@ int pinblock_encode_iso9564_format0(
 
 	// Build PAN field
 	// See ISO 9564-1:2017 9.3.2.3
-	pinblock_pack_pan(pan, pan_len, panfield);
+	r = pinblock_pack_pan(pan, pan_len, panfield);
+	if (r) {
+		r = -4;
+		goto error;
+	}
 
 	// Build PIN block
 	// See ISO 9564-1:2017 9.3.2.1
@@ -374,12 +405,16 @@ int pinblock_decode_iso9564_format0(
 	// Extract PIN field from PIN block
 	// See ISO 9564-1:2017 9.3.2.1
 	memcpy(pinfield, pinblock, PINBLOCK_SIZE);
-	pinblock_pack_pan(pan, pan_len, panfield);
+	r = pinblock_pack_pan(pan, pan_len, panfield);
+	if (r) {
+		r = -2;
+		goto error;
+	}
 	crypto_xor(pinfield, panfield, PINBLOCK_SIZE);
 
 	// Sanity check
 	if (memcmp(pinblock, pinfield, 2) != 0) {
-		r = -2;
+		r = -3;
 		goto error;
 	}
 
@@ -447,7 +482,11 @@ int pinblock_encode_iso9564_format1(
 
 	// Build PIN field
 	// See ISO 9564-1:2017 9.3.3
-	pinblock_pack_pin_with_nonce(PINBLOCK_ISO9564_FORMAT_1, pin, pin_len, nonce_field, nonce_len, pinblock);
+	r = pinblock_pack_pin_with_nonce(PINBLOCK_ISO9564_FORMAT_1, pin, pin_len, nonce_field, nonce_len, pinblock);
+	if (r) {
+		r = -4;
+		goto error;
+	}
 
 	// Success
 	r = 0;
@@ -639,7 +678,11 @@ int pinblock_encode_iso9564_format3(
 
 	// Build PAN field
 	// See ISO 9564-1:2017 9.3.5.3
-	pinblock_pack_pan(pan, pan_len, panfield);
+	r = pinblock_pack_pan(pan, pan_len, panfield);
+	if (r) {
+		r = -8;
+		goto error;
+	}
 
 	// Build PIN block
 	// See ISO 9564-1:2017 9.3.5.1
@@ -685,12 +728,16 @@ int pinblock_decode_iso9564_format3(
 	// Extract PIN field from PIN block
 	// See ISO 9564-1:2017 9.3.5.1
 	memcpy(pinfield, pinblock, PINBLOCK_SIZE);
-	pinblock_pack_pan(pan, pan_len, panfield);
+	r = pinblock_pack_pan(pan, pan_len, panfield);
+	if (r) {
+		r = -2;
+		goto error;
+	}
 	crypto_xor(pinfield, panfield, PINBLOCK_SIZE);
 
 	// Sanity check
 	if (memcmp(pinblock, pinfield, 2) != 0) {
-		r = -2;
+		r = -3;
 		goto error;
 	}
 
@@ -761,6 +808,9 @@ int pinblock_encode_iso9564_format4_panfield(
 	uint8_t* panfield
 )
 {
+	int r;
+	bool pan_digit_found = false;
+
 	if (!pan || !pan_len || !panfield) {
 		return -1;
 	}
@@ -791,9 +841,26 @@ int pinblock_encode_iso9564_format4_panfield(
 			}
 			++pan_idx;
 
-			// Skip over padding
-			if (digit == 0xF) {
-				continue;
+			// Only trailing padding is allowed
+			if (!pan_digit_found) {
+				if (digit >= 0xA && digit <= 0xE) {
+					// Invalid PAN digit
+					goto error;
+				}
+
+				if (digit == 0xF) {
+					// Skip over trailing padding
+					continue;
+				}
+
+				pan_digit_found = true;
+
+			} else {
+				// No more padding
+				if (digit > 9) {
+					// Invalid PAN digit
+					return 2;
+				}
 			}
 
 			// Pack digit into PAN field
@@ -831,7 +898,12 @@ int pinblock_encode_iso9564_format4_panfield(
 				--pan_len;
 			}
 
-			// Skip over padding
+			if (digit >= 0xA && digit <= 0xE) {
+				// Invalid PAN digit
+				goto error;
+			}
+
+			// Stop at first PAN padding digit
 			if (digit == 0xF) {
 				break;
 			}
@@ -856,7 +928,15 @@ int pinblock_encode_iso9564_format4_panfield(
 		panfield[0] |= (pan_idx - 12) << 4;
 	}
 
-	return 0;
+	// Success
+	r = 0;
+	goto exit;
+
+error:
+	// Ensure that PAN field is unusable on error
+	crypto_cleanse(panfield, PINBLOCK128_SIZE);
+exit:
+	return r;
 }
 
 int pinblock_decode_iso9564_format4_pinfield(
