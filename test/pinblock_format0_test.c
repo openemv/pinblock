@@ -1,7 +1,7 @@
 /**
  * @file pinblock_format0_test.c
  *
- * Copyright 2022 Leon Lynch
+ * Copyright 2022, 2025 Leon Lynch
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,10 +24,13 @@
 #include <stdio.h>
 #include <string.h>
 
+// PIN with invalid digit
+static const uint8_t pin_invalid[] = { 0x01, 0x02, 0x0A, 0x04 };
+
 // ANSI X9.24-1:2009 A.4 DUKPT Test Data Examples
 static const uint8_t pin[] = { 0x01, 0x02, 0x03, 0x04 };
 static const uint8_t pan[] = { 0x40, 0x12, 0x34, 0x56, 0x78, 0x90, 0x9F };
-static const uint8_t pinblock[] = { 0x04, 0x12, 0x74, 0xED, 0xCB, 0xA9, 0x87, 0x6F };
+static const uint8_t pinblock_verify[] = { 0x04, 0x12, 0x74, 0xED, 0xCB, 0xA9, 0x87, 0x6F };
 
 // Incorrect test PAN
 static const uint8_t bad_pan[] = { 0x40, 0x22, 0x34, 0x56, 0x78, 0x90, 0x9F };
@@ -45,35 +48,49 @@ static void print_buf(const char* buf_name, const void* buf, size_t length)
 int main(void)
 {
 	int r;
-	uint8_t encoded_pinblock[PINBLOCK_SIZE];
+	uint8_t pinblock[PINBLOCK_SIZE];
 	unsigned int format;
 	uint8_t decoded_pin[12];
 	size_t decoded_pin_len = 0;
 
-	// Test ISO 9564-1:2017 PIN block format 0 encoding
+	printf("Test 1: PIN block encoding with invalid digit...\n");
+	r = pinblock_encode_iso9564_format0(
+		pin_invalid,
+		sizeof(pin_invalid),
+		pan,
+		sizeof(pan),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format0() unexpectedly succeeded for invalid PIN\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 2: PIN block encoding of valid PIN...\n");
 	r = pinblock_encode_iso9564_format0(
 		pin,
 		sizeof(pin),
 		pan,
 		sizeof(pan),
-		encoded_pinblock
+		pinblock
 	);
 	if (r) {
 		fprintf(stderr, "pinblock_encode_iso9564_format0() failed; r=%d\n", r);
 		goto exit;
 	}
-	if (memcmp(encoded_pinblock, pinblock, sizeof(pinblock)) != 0) {
-		fprintf(stderr, "Encoded PIN block is incorrect\n");
-		print_buf("encoded_pinblock", encoded_pinblock, sizeof(encoded_pinblock));
+	if (memcmp(pinblock, pinblock_verify, sizeof(pinblock_verify)) != 0) {
+		fprintf(stderr, "PIN block is incorrect\n");
 		print_buf("pinblock", pinblock, sizeof(pinblock));
+		print_buf("pinblock_verify", pinblock_verify, sizeof(pinblock_verify));
 		r = 1;
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 0 decoding
+	printf("Test 3: PIN block format 0 decoding...\n");
 	r = pinblock_decode_iso9564_format0(
-		pinblock,
-		sizeof(pinblock),
+		pinblock_verify,
+		sizeof(pinblock_verify),
 		pan,
 		sizeof(pan),
 		decoded_pin,
@@ -96,8 +113,8 @@ int main(void)
 		goto exit;
 	}
 
-	// Test format retrieval
-	r = pinblock_get_format(pinblock, sizeof(pinblock));
+	printf("Test 4: PIN block format retrieval...\n");
+	r = pinblock_get_format(pinblock_verify, sizeof(pinblock_verify));
 	if (r < 0) {
 		fprintf(stderr, "pinblock_get_format() failed; r=%d\n", r);
 		goto exit;
@@ -108,10 +125,10 @@ int main(void)
 		goto exit;
 	}
 
-	// Test generic decoding
+	printf("Test 5: Generic PIN block decoding...\n");
 	r = pinblock_decode(
-		pinblock,
-		sizeof(pinblock),
+		pinblock_verify,
+		sizeof(pinblock_verify),
 		pan,
 		sizeof(pan),
 		&format,
@@ -140,10 +157,10 @@ int main(void)
 		goto exit;
 	}
 
-	// Test padding validation
+	printf("Test 6: Padding validation with incorrect PAN...\n");
 	r = pinblock_decode_iso9564_format0(
-		pinblock,
-		sizeof(pinblock),
+		pinblock_verify,
+		sizeof(pinblock_verify),
 		bad_pan,
 		sizeof(bad_pan),
 		decoded_pin,

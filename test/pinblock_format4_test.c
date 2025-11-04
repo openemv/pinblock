@@ -1,7 +1,7 @@
 /**
  * @file pinblock_format4_test.c
  *
- * Copyright 2022 Leon Lynch
+ * Copyright 2022, 2025 Leon Lynch
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+// PIN with invalid digit
+static const uint8_t pin_invalid[] = { 0x01, 0x02, 0x0A, 0x04 };
 
 // ANSI X9.24-3:2017 Supplement Test Vectors for AES-128 BDK (Calculation of AES PIN Block Format 4; top of page 31)
 static const uint8_t pin[] = { 0x01, 0x02, 0x03, 0x04 };
@@ -62,7 +65,19 @@ int main(void)
 	uint8_t decoded_pin[12];
 	size_t decoded_pin_len = 0;
 
-	// Test ISO 9564-1:2017 PIN block format 4 PIN field encoding
+	printf("Test 1: PIN field encoding of PIN with invalid digit...\n");
+	r = pinblock_encode_iso9564_format4_pinfield(
+		pin_invalid,
+		sizeof(pin_invalid),
+		pinfield
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format4_pinfield() unexpectedly succeeded for invalid PIN\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 2: PIN field encoding of valid PIN...\n");
 	r = pinblock_encode_iso9564_format4_pinfield(
 		pin,
 		sizeof(pin),
@@ -80,14 +95,14 @@ int main(void)
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 4 encoding randomness
+	printf("Test 3: PIN field encoding randomness...\n");
 	r = pinblock_encode_iso9564_format4_pinfield(
 		pin,
 		sizeof(pin),
 		pinfield2
 	);
 	if (r) {
-		fprintf(stderr, "pinblock_encode_iso9564_format4() failed; r=%d\n", r);
+		fprintf(stderr, "pinblock_encode_iso9564_format4_pinfield() failed; r=%d\n", r);
 		goto exit;
 	}
 	if (memcmp(pinfield2, pinfield_verify, sizeof(pinfield_verify)) != 0) {
@@ -105,7 +120,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 4 PAN field encoding
+	printf("Test 4: PAN field encoding of 16-digit PAN with no padding...\n");
 	r = pinblock_encode_iso9564_format4_panfield(
 		pan,
 		sizeof(pan),
@@ -123,7 +138,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 4 PIN field encoding odd number of PIN digits
+	printf("Test 5: PIN field encoding with odd number of PIN digits...\n");
 	r = pinblock_encode_iso9564_format4_pinfield(
 		pin2,
 		sizeof(pin2),
@@ -141,7 +156,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 4 PAN field encoding with padded PAN
+	printf("Test 6: PAN field encoding of 15-digit PAN with minimal padding...\n");
 	r = pinblock_encode_iso9564_format4_panfield(
 		pan2,
 		sizeof(pan2),
@@ -159,7 +174,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 4 PAN field encoding of short PAN with padding
+	printf("Test 7: PAN field encoding of 9-digit PAN with minimal padding...\n");
 	r = pinblock_encode_iso9564_format4_panfield(
 		pan3,
 		sizeof(pan3),
@@ -177,7 +192,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 4 decoding
+	printf("Test 8: PIN field format 4 decoding...\n");
 	r = pinblock_decode_iso9564_format4_pinfield(
 		pinfield,
 		sizeof(pinfield),
@@ -201,7 +216,8 @@ int main(void)
 		goto exit;
 	}
 
-	// Test format retrieval
+
+	printf("Test 9: PIN block format retrieval...\n");
 	r = pinblock_get_format(pinfield, sizeof(pinfield));
 	if (r < 0) {
 		fprintf(stderr, "pinblock_get_format() failed; r=%d\n", r);
@@ -213,7 +229,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test generic decoding
+	printf("Test 10: Generic PIN field decoding...\n");
 	r = pinblock_decode(
 		pinfield,
 		sizeof(pinfield),
@@ -245,7 +261,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test padding validation
+	printf("Test 11: PIN block padding validation...\n");
 	pinfield[6] ^= 1;
 	r = pinblock_decode_iso9564_format4_pinfield(
 		pinfield,

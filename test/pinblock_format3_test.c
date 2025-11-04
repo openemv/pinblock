@@ -1,7 +1,7 @@
 /**
  * @file pinblock_format3_test.c
  *
- * Copyright 2022 Leon Lynch
+ * Copyright 2022, 2025 Leon Lynch
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+// PIN with invalid digit
+static const uint8_t pin_invalid[] = { 0x01, 0x02, 0x0A, 0x04 };
 
 // Hand made example
 static const uint8_t pin[] = { 0x01, 0x02, 0x03, 0x04, 0x05 };
@@ -159,7 +162,21 @@ int main(void)
 	uint8_t decoded_pin[12];
 	size_t decoded_pin_len = 0;
 
-	// Test ISO 9564-1:2017 PIN block format 3 encoding fill digit correctness
+	printf("Test 1: PIN block encoding with invalid digit...\n");
+	r = pinblock_encode_iso9564_format3(
+		pin_invalid,
+		sizeof(pin_invalid),
+		pan,
+		sizeof(pan),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format3() unexpectedly succeeded for invalid PIN\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 2: PIN block encoding fill digit correctness...\n");
 	r = pinblock_encode_iso9564_format3(
 		pin,
 		sizeof(pin),
@@ -189,7 +206,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 3 encoding randomness
+	printf("Test 3: PIN block encoding randomness...\n");
 	r = pinblock_encode_iso9564_format3(
 		pin,
 		sizeof(pin),
@@ -209,7 +226,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test ISO 9564-1:2017 PIN block format 3 decoding
+	printf("Test 4: PIN block format 3 decoding...\n");
 	r = pinblock_decode_iso9564_format3(
 		pinblock,
 		sizeof(pinblock),
@@ -235,7 +252,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test format retrieval
+	printf("Test 5: PIN block format retrieval...\n");
 	r = pinblock_get_format(pinblock, sizeof(pinblock));
 	if (r < 0) {
 		fprintf(stderr, "pinblock_get_format() failed; r=%d\n", r);
@@ -247,7 +264,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test generic decoding
+	printf("Test 6: Generic PIN block decoding...\n");
 	r = pinblock_decode(
 		pinblock,
 		sizeof(pinblock),
@@ -279,7 +296,7 @@ int main(void)
 		goto exit;
 	}
 
-	// Test padding validation
+	printf("Test 7: Padding validation with incorrect PAN...\n");
 	r = pinblock_decode_iso9564_format3(
 		pinblock,
 		sizeof(pinblock),
