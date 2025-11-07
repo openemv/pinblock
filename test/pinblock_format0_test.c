@@ -35,6 +35,21 @@ static const uint8_t pinblock_verify[] = { 0x04, 0x12, 0x74, 0xED, 0xCB, 0xA9, 0
 // Incorrect test PAN
 static const uint8_t bad_pan[] = { 0x40, 0x22, 0x34, 0x56, 0x78, 0x90, 0x9F };
 
+// Hand made example to test 9-digit PAN with minimal padding
+static const uint8_t pan_short9[] = { 0x12, 0x34, 0x56, 0x78, 0x9F };
+
+// Hand made example to test 5-digit PAN with excessive padding
+static const uint8_t pan_short5[] = { 0x12, 0x34, 0x5F, 0xFF, 0xFF, 0xFF, 0xFF };
+
+// Hand made example to test PAN with all 0xF padding
+static const uint8_t pan_all_padding[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+// Hand made example to test PAN with invalid digit between valid digits
+static const uint8_t pan_invalid_digit[] = { 0x12, 0x34, 0x5A, 0x67, 0x89, 0x01, 0x2F };
+
+// Hand made example to test PAN with valid and invalid padding digits
+static const uint8_t pan_invalid_padding[] = { 0x12, 0x3F, 0x45, 0x67, 0x89, 0x01, 0x2F };
+
 static void print_buf(const char* buf_name, const void* buf, size_t length)
 {
 	const uint8_t* ptr = buf;
@@ -173,6 +188,76 @@ int main(void)
 	}
 	if (decoded_pin_len != 0) {
 		fprintf(stderr, "Decoded PIN length is incorrect\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 7: PAN encoding of 9-digit PAN...\n");
+	r = pinblock_encode_iso9564_format0(
+		pin,
+		sizeof(pin),
+		pan_short9,
+		sizeof(pan_short9),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format0() unexpectedly succeeded with 9-digit PAN\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 8: PAN encoding of 5-digit PAN padded to 7 bytes...\n");
+	r = pinblock_encode_iso9564_format0(
+		pin,
+		sizeof(pin),
+		pan_short5,
+		sizeof(pan_short5),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format0() unexpectedly succeeded with 5-digit PAN\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 9: PAN encoding with all 0xF padding...\n");
+	r = pinblock_encode_iso9564_format0(
+		pin,
+		sizeof(pin),
+		pan_all_padding,
+		sizeof(pan_all_padding),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format0() unexpectedly succeeded with all 0xF PAN\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 10: PAN encoding of PAN with invalid digit...\n");
+	r = pinblock_encode_iso9564_format0(
+		pin,
+		sizeof(pin),
+		pan_invalid_digit,
+		sizeof(pan_invalid_digit),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format0() unexpectedly succeeded with invalid PAN digit\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 11: PAN encoding of PAN with valid and invalid padding digits...\n");
+	r = pinblock_encode_iso9564_format0(
+		pin,
+		sizeof(pin),
+		pan_invalid_padding,
+		sizeof(pan_invalid_padding),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format0() unexpectedly succeeded with invalid PAN padding digits\n");
 		r = 1;
 		goto exit;
 	}

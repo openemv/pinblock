@@ -33,15 +33,34 @@ static const uint8_t pinfield_verify[] = { 0x44, 0x12, 0x34, 0xAA, 0xAA, 0xAA, 0
 static const uint8_t pan[] = { 0x41, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11 };
 static const uint8_t panfield_verify[] = { 0x44, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-// Hand made example
+// Hand made example to test odd number of PIN digits and padded PAN
 static const uint8_t pin2[] = { 0x01, 0x02, 0x03, 0x04, 0x05 };
 static const uint8_t pinfield_verify2[] = { 0x45, 0x12, 0x34, 0x5A, 0xAA, 0xAA, 0xAA, 0xAA };
 static const uint8_t pan2[] = { 0x41, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1F };
 static const uint8_t panfield_verify2[] = { 0x34, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-// Hand made example
+// Hand made example to test 9-digit PAN with minimal padding
 static const uint8_t pan3[] = { 0x12, 0x34, 0x56, 0x78, 0x9F };
 static const uint8_t panfield_verify3[] = { 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+// Hand made example to test 5-digit PAN with excessive padding
+static const uint8_t pan4[] = { 0x12, 0x34, 0x5F, 0xFF, 0xFF, 0xFF, 0xFF };
+static const uint8_t panfield_verify4[] = { 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+// Hand made example to test PAN with all 0xF padding
+static const uint8_t pan5[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+// Hand made example to test PAN with invalid digits before padding
+static const uint8_t pan6[] = { 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBF, 0xFF };
+
+// Hand made example to test PAN with digits after padding
+static const uint8_t pan7[] = { 0x12, 0x34, 0xF6, 0x78, 0x90, 0x12 };
+
+// Hand made example to test PAN with invalid digit between valid digits
+static const uint8_t pan8[] = { 0x12, 0x34, 0x5A, 0x67, 0x89, 0x01, 0x2F };
+
+// Hand made example to test PAN with valid and invalid padding digits
+static const uint8_t pan9[] = { 0x12, 0x3F, 0x45, 0x67, 0x89, 0x01, 0x2F };
 
 static void print_buf(const char* buf_name, const void* buf, size_t length)
 {
@@ -61,6 +80,7 @@ int main(void)
 	uint8_t panfield[PINBLOCK128_SIZE];
 	uint8_t panfield2[PINBLOCK128_SIZE];
 	uint8_t panfield3[PINBLOCK128_SIZE];
+	uint8_t panfield4[PINBLOCK128_SIZE];
 	unsigned int format;
 	uint8_t decoded_pin[12];
 	size_t decoded_pin_len = 0;
@@ -128,6 +148,7 @@ int main(void)
 	);
 	if (r) {
 		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() failed; r=%d\n", r);
+		print_buf("pan", pan, sizeof(pan));
 		goto exit;
 	}
 	if (memcmp(panfield, panfield_verify, sizeof(panfield_verify)) != 0) {
@@ -164,6 +185,7 @@ int main(void)
 	);
 	if (r) {
 		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() failed; r=%d\n", r);
+		print_buf("pan2", pan2, sizeof(pan2));
 		goto exit;
 	}
 	if (memcmp(panfield2, panfield_verify2, sizeof(panfield_verify2)) != 0) {
@@ -174,25 +196,98 @@ int main(void)
 		goto exit;
 	}
 
-	printf("Test 7: PAN field encoding of 9-digit PAN with minimal padding...\n");
+	printf("Test 7: PAN field encoding of 9-digit PAN...\n");
 	r = pinblock_encode_iso9564_format4_panfield(
 		pan3,
 		sizeof(pan3),
 		panfield3
 	);
-	if (r) {
-		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() failed; r=%d\n", r);
-		goto exit;
-	}
-	if (memcmp(panfield3, panfield_verify3, sizeof(panfield_verify3)) != 0) {
-		fprintf(stderr, "Short PAN field is incorrect\n");
-		print_buf("panfield3", panfield3, sizeof(panfield3));
-		print_buf("panfield_verify3", panfield_verify3, sizeof(panfield_verify3));
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() unexpectedly succeeded with 9-digit PAN\n");
+		print_buf("pan3", pan3, sizeof(pan3));
 		r = 1;
 		goto exit;
 	}
 
-	printf("Test 8: PIN field format 4 decoding...\n");
+	printf("Test 8: PAN field encoding of 5-digit PAN padded to 7 bytes...\n");
+	r = pinblock_encode_iso9564_format4_panfield(
+		pan4,
+		sizeof(pan4),
+		panfield4
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() unexpectedly succeeded with 5-digit PAN\n");
+		print_buf("pan4", pan4, sizeof(pan4));
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 9: PAN field encoding of all 0xF PAN...\n");
+	r = pinblock_encode_iso9564_format4_panfield(
+		pan5,
+		sizeof(pan5),
+		panfield
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() unexpectedly succeeded with all 0xF PAN\n");
+		print_buf("pan5", pan5, sizeof(pan5));
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 10: PAN field encoding of PAN with invalid digits...\n");
+	r = pinblock_encode_iso9564_format4_panfield(
+		pan6,
+		sizeof(pan6),
+		panfield
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() unexpectedly succeeded with invalid PAN digits before padding\n");
+		print_buf("pan6", pan6, sizeof(pan6));
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 11: PAN field encoding of PAN with digits after padding...\n");
+	r = pinblock_encode_iso9564_format4_panfield(
+		pan7,
+		sizeof(pan7),
+		panfield
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() unexpectedly succeeded with PAN digits after padding\n");
+		print_buf("pan7", pan7, sizeof(pan7));
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 12: PAN field encoding of PAN with invalid digit...\n");
+	r = pinblock_encode_iso9564_format4_panfield(
+		pan8,
+		sizeof(pan8),
+		panfield
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() unexpectedly succeeded with invalid PAN digit\n");
+		print_buf("pan8", pan8, sizeof(pan8));
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 13: PAN field encoding of PAN with valid and invalid padding digits...\n");
+	r = pinblock_encode_iso9564_format4_panfield(
+		pan9,
+		sizeof(pan9),
+		panfield
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format4_panfield() unexpectedly succeeded with invalid PAN padding digits\n");
+		print_buf("pan9", pan9, sizeof(pan9));
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 14: PIN field format 4 decoding...\n");
 	r = pinblock_decode_iso9564_format4_pinfield(
 		pinfield,
 		sizeof(pinfield),
@@ -216,8 +311,7 @@ int main(void)
 		goto exit;
 	}
 
-
-	printf("Test 9: PIN block format retrieval...\n");
+	printf("Test 15: PIN block format retrieval...\n");
 	r = pinblock_get_format(pinfield, sizeof(pinfield));
 	if (r < 0) {
 		fprintf(stderr, "pinblock_get_format() failed; r=%d\n", r);
@@ -229,7 +323,7 @@ int main(void)
 		goto exit;
 	}
 
-	printf("Test 10: Generic PIN field decoding...\n");
+	printf("Test 16: Generic PIN field decoding...\n");
 	r = pinblock_decode(
 		pinfield,
 		sizeof(pinfield),
@@ -261,7 +355,7 @@ int main(void)
 		goto exit;
 	}
 
-	printf("Test 11: PIN block padding validation...\n");
+	printf("Test 17: PIN block padding validation...\n");
 	pinfield[6] ^= 1;
 	r = pinblock_decode_iso9564_format4_pinfield(
 		pinfield,
