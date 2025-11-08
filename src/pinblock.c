@@ -809,58 +809,90 @@ int pinblock_encode_iso9564_format4_panfield(
 )
 {
 	int r;
-	bool pan_digit_found = false;
+	bool padding_found = false;
+	size_t pan_digit_count = 0;
 
 	if (!pan || !pan_len || !panfield) {
 		return -1;
 	}
 
+	// Validate PAN before encoding PAN field and determine the number of valid
+	// PAN digits that should be encoded
+	for (size_t pan_idx = 0; pan_len > 0; ++pan_idx){
+		uint8_t digit;
+
+		// Extract PAN digit
+		if ((pan_idx & 0x1) == 0) { // Even digit index
+			// Most significant nibble
+			digit = pan[pan_idx >> 1] >> 4;
+		} else { // Odd digit index
+			// Least significant nibble
+			digit = pan[pan_idx >> 1] & 0xF;
+			--pan_len;
+		}
+
+		// Validate digit
+		if (!padding_found) {
+			if (digit >= 0xA && digit <= 0xE) {
+				// Invalid PAN digit
+				r = -2;
+				goto error;
+			}
+
+			// First padding digit found
+			if (digit == 0xF) {
+				padding_found = true;
+				continue;
+			}
+
+			// Valid PAN digit
+			++pan_digit_count;
+
+		} else {
+			// Skip over trailing padding
+			if (digit != 0xF) {
+				// Invalid padding digit
+				r = -3;
+				goto error;
+			}
+		}
+	}
+
+	// Validate PAN length
+	// ISO 9564-1:2017 does not specify minimum or maximum PAN lengths.
+	// However, ISO 7812 specifies that PANs are 10 - 19 digits and the number
+	// of available PAN digits may impact the PAN encoding. It is therefore
+	// reasonable to reject invalid PAN lengths.
+	if (pan_digit_count < 10) {
+		r = -4;
+		goto error;
+	}
+	if (pan_digit_count > 19) {
+		r = -5;
+		goto error;
+	}
+
 	// Build PAN field
 	// See ISO 9564-1:2017 9.4.2.2.3
 	memset(panfield, 0, PINBLOCK128_SIZE);
-	if (pan_len < 6 ||
-		(pan_len == 6 && (pan[pan_len - 1] & 0xF) == 0xF)
-	) {
+
+	if (pan_digit_count < 12) {
 		// If PAN is less than 12 digits, M is zero
 		// PAN digits will be right justified and left padded with zeros
 
-		size_t pan_idx = 0;
 		size_t panfield_idx = 12; // Start after M digit
 
-		while (pan_len > 0 && panfield_idx > 0) {
+		for (size_t i = 0; i < pan_digit_count; ++i) {
 			uint8_t digit;
+			size_t pan_idx = pan_digit_count - 1 - i; // Reverse order
 
 			// Extract PAN digit
 			if ((pan_idx & 0x1) == 0) { // Even digit index
-				// Least significant nibble
-				digit = pan[pan_len - 1] & 0xF;
-			} else { // Odd digit index
 				// Most significant nibble
-				digit = pan[pan_len - 1] >> 4;
-				--pan_len;
-			}
-			++pan_idx;
-
-			// Only trailing padding is allowed
-			if (!pan_digit_found) {
-				if (digit >= 0xA && digit <= 0xE) {
-					// Invalid PAN digit
-					goto error;
-				}
-
-				if (digit == 0xF) {
-					// Skip over trailing padding
-					continue;
-				}
-
-				pan_digit_found = true;
-
-			} else {
-				// No more padding
-				if (digit > 9) {
-					// Invalid PAN digit
-					return 2;
-				}
+				digit = pan[pan_idx >> 1] >> 4;
+			} else { // Odd digit index
+				// Least significant nibble
+				digit = pan[pan_idx >> 1] & 0xF;
 			}
 
 			// Pack digit into PAN field
@@ -881,11 +913,9 @@ int pinblock_encode_iso9564_format4_panfield(
 		// NOTE: In contrast to ISO 9564-1:2017 PIN block format 0/3, format 4
 		// does not ignore the PAN check digit
 
-		size_t panfield_len = PINBLOCK128_SIZE - 6; // Last 6 bytes are zero'd
-		size_t pan_idx = 0;
 		size_t panfield_idx = 1; // Start after M digit
 
-		while (pan_len > 0 && panfield_len > 0) {
+		for (size_t pan_idx = 0; pan_idx < pan_digit_count; ++pan_idx) {
 			uint8_t digit;
 
 			// Extract PAN digit
@@ -895,21 +925,7 @@ int pinblock_encode_iso9564_format4_panfield(
 			} else { // Odd digit index
 				// Least significant nibble
 				digit = pan[pan_idx >> 1] & 0xF;
-				--pan_len;
 			}
-
-			if (digit >= 0xA && digit <= 0xE) {
-				// Invalid PAN digit
-				goto error;
-			}
-
-			// Stop at first PAN padding digit
-			if (digit == 0xF) {
-				break;
-			}
-
-			// Valid PAN digit
-			++pan_idx;
 
 			// Pack digit into PAN field
 			// See ISO 9564-1:2017 9.4.2.2.3
@@ -919,13 +935,12 @@ int pinblock_encode_iso9564_format4_panfield(
 			} else { // Odd digit index
 				// Least significant nibble
 				panfield[panfield_idx >> 1] |= digit;
-				--panfield_len;
 			}
 			++panfield_idx;
 		}
 
 		// Populate M
-		panfield[0] |= (pan_idx - 12) << 4;
+		panfield[0] |= (pan_digit_count - 12) << 4;
 	}
 
 	// Success
