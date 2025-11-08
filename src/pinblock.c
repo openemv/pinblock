@@ -993,6 +993,10 @@ int pinblock_get_format(const uint8_t* pinblock, size_t pinblock_len)
 {
 	uint8_t format;
 
+	if (!pinblock || !pinblock_len) {
+		return -1;
+	}
+
 	if (pinblock_len == PINBLOCK_SIZE) {
 		// First 4 bits are the control field indicating the PIN block format
 		// See ISO 9564-1:2017 9.3.1
@@ -1017,7 +1021,7 @@ int pinblock_get_format(const uint8_t* pinblock, size_t pinblock_len)
 		}
 	}
 
-	return -1;
+	return -2;
 }
 
 int pinblock_decode(
