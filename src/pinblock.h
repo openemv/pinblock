@@ -2,7 +2,7 @@
  * @file pinblock.h
  * @brief ISO 9564-1:2017 PIN block format implementation
  *
- * Copyright 2022 Leon Lynch
+ * Copyright 2022, 2025 Leon Lynch
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,6 +28,8 @@
 
 __BEGIN_DECLS
 
+#define PINBLOCK_PIN_LENGTH_MIN (4) ///< Minimum number of PIN digits
+#define PINBLOCK_PIN_LENGTH_MAX (12) ///< Maximum number of PIN digits
 #define PINBLOCK_SIZE (8) ///< PIN block size (in bytes) for ISO 9564-1:2017 format 0, 1, 2, 3
 #define PINBLOCK128_SIZE (16) ///< PIN block size (in bytes) for ISO 9564-1:2017 format 4
 

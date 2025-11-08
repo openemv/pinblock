@@ -172,7 +172,9 @@ static int pinblock_unpack_pin(
 	// Validate PIN length
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
-	if (decoded_pin_len < 4 || decoded_pin_len > 12) {
+	if (decoded_pin_len < PINBLOCK_PIN_LENGTH_MIN ||
+		decoded_pin_len > PINBLOCK_PIN_LENGTH_MAX
+	) {
 		return -5;
 	}
 
@@ -341,7 +343,9 @@ int pinblock_encode_iso9564_format0(
 	// Validate PIN length
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
-	if (pin_len < 4 || pin_len > 12) {
+	if (pin_len < PINBLOCK_PIN_LENGTH_MIN ||
+		pin_len > PINBLOCK_PIN_LENGTH_MAX
+	) {
 		r = -2;
 		goto error;
 	}
@@ -428,7 +432,7 @@ int pinblock_decode_iso9564_format0(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 12);
+	crypto_cleanse(pin, PINBLOCK_PIN_LENGTH_MAX);
 exit:
 	crypto_cleanse(pinfield, sizeof(pinfield));
 	crypto_cleanse(panfield, sizeof(panfield));
@@ -454,7 +458,9 @@ int pinblock_encode_iso9564_format1(
 	// Validate PIN length
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
-	if (pin_len < 4 || pin_len > 12) {
+	if (pin_len < PINBLOCK_PIN_LENGTH_MIN ||
+		pin_len > PINBLOCK_PIN_LENGTH_MAX
+	) {
 		r = -2;
 		goto error;
 	}
@@ -530,7 +536,7 @@ int pinblock_decode_iso9564_format1(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 12);
+	crypto_cleanse(pin, PINBLOCK_PIN_LENGTH_MAX);
 exit:
 	return r;
 }
@@ -550,7 +556,9 @@ int pinblock_encode_iso9564_format2(
 	// Validate PIN length
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
-	if (pin_len < 4 || pin_len > 12) {
+	if (pin_len < PINBLOCK_PIN_LENGTH_MIN ||
+		pin_len > PINBLOCK_PIN_LENGTH_MAX
+	) {
 		r = -2;
 		goto error;
 	}
@@ -603,7 +611,7 @@ int pinblock_decode_iso9564_format2(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 12);
+	crypto_cleanse(pin, PINBLOCK_PIN_LENGTH_MAX);
 exit:
 	return r;
 }
@@ -627,7 +635,9 @@ int pinblock_encode_iso9564_format3(
 	// Validate PIN length
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
-	if (pin_len < 4 || pin_len > 12) {
+	if (pin_len < PINBLOCK_PIN_LENGTH_MIN ||
+		pin_len > PINBLOCK_PIN_LENGTH_MAX
+	) {
 		r = -2;
 		goto error;
 	}
@@ -751,7 +761,7 @@ int pinblock_decode_iso9564_format3(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 12);
+	crypto_cleanse(pin, PINBLOCK_PIN_LENGTH_MAX);
 exit:
 	crypto_cleanse(pinfield, sizeof(pinfield));
 	crypto_cleanse(panfield, sizeof(panfield));
@@ -774,7 +784,9 @@ int pinblock_encode_iso9564_format4_pinfield(
 	// Validate PIN length
 	// See ISO 9564-1:2017 8.1
 	// See ISO 9564-1:2017 9.1
-	if (pin_len < 4 || pin_len > 12) {
+	if (pin_len < PINBLOCK_PIN_LENGTH_MIN ||
+		pin_len > PINBLOCK_PIN_LENGTH_MAX
+	) {
 		r = -2;
 		goto error;
 	}
@@ -984,7 +996,7 @@ int pinblock_decode_iso9564_format4_pinfield(
 	goto exit;
 
 error:
-	crypto_cleanse(pin, 12);
+	crypto_cleanse(pin, PINBLOCK_PIN_LENGTH_MAX);
 exit:
 	return r;
 }
