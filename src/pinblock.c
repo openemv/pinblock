@@ -467,7 +467,7 @@ int pinblock_encode_iso9564_format1(
 
 	// Validate nonce length
 	// See ISO 9564-1:2017 9.3.3
-	if (nonce && nonce_len && nonce_len < PINBLOCK_SIZE - 1 - (pin_len / 2)) {
+	if (nonce && nonce_len < PINBLOCK_SIZE - 1 - (pin_len / 2)) {
 		r = -3;
 		goto error;
 	}

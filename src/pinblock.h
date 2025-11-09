@@ -93,6 +93,12 @@ int pinblock_decode_iso9564_format0(
 /**
  * Encode PIN block in accordance with ISO 9564-1:2017 PIN block format 1
  *
+ * @note If @p nonce is provided, this function will use it in reverse order
+ *       such that the least significant byte of sources like the transaction
+ *       sequence number (EMV field @c 9F41) or timestamp is used first. The
+ *       recommendation is to provide uniformly random data or for @p nonce to
+ *       be NULL instead.
+ *
  * @param pin PIN buffer containing one PIN digit value per byte
  * @param pin_len Length of PIN
  * @param nonce Unique padding field. This field must be unique for every
@@ -101,8 +107,8 @@ int pinblock_decode_iso9564_format0(
  *              random data, or similar. Use NULL for random padding
  *              (recommended).
  * @param nonce_len Length of unique padding field. Must be at least
- *                  <tt>PINBLOCK_SIZE - 1 - (pin_len / 2)</tt>. Use zero for
- *                  random padding.
+ *                  <tt>PINBLOCK_SIZE - 1 - (pin_len / 2)</tt>. Use zero when
+ *                  @p nonce is NULL.
  * @param pinblock PIN block output of length @ref PINBLOCK_SIZE
  * @return Zero for success. Less than zero for error.
  */
