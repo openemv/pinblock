@@ -45,6 +45,7 @@ Roadmap
 License
 -------
 
-Copyright 2022 [Leon Lynch](https://github.com/leonlynch).
+Copyright 2022-2025 [Leon Lynch](https://github.com/leonlynch).
 
-This project is licensed under the terms of the LGPL v2.1 license. See LICENSE file.
+This project is licensed under the terms of the LGPL v2.1 license.
+See [LICENSE](https://github.com/openemv/pinblock/blob/master/LICENSE) file.

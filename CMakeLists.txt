@@ -1,5 +1,5 @@
 ##############################################################################
-# Copyright 2022 Leon Lynch
+# Copyright 2022, 2025 Leon Lynch
 #
 # This file is licensed under the terms of the LGPL v2.1 license.
 # See LICENSE file.
@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.16)
 # an object library that can be added to other projects.
 
 project(pinblock
-	VERSION 0.1.0
+	VERSION 0.2.0
 	DESCRIPTION "OpenEMV PIN block implementation"
 	HOMEPAGE_URL "https://github.com/openemv/pinblock"
 	LANGUAGES C
