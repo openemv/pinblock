@@ -417,7 +417,7 @@ int pinblock_decode_iso9564_format0(
 	crypto_xor(pinfield, panfield, PINBLOCK_SIZE);
 
 	// Sanity check
-	if (memcmp(pinblock, pinfield, 2) != 0) {
+	if (crypto_memcmp_s(pinblock, pinfield, 2) != 0) {
 		r = -3;
 		goto error;
 	}
@@ -746,7 +746,7 @@ int pinblock_decode_iso9564_format3(
 	crypto_xor(pinfield, panfield, PINBLOCK_SIZE);
 
 	// Sanity check
-	if (memcmp(pinblock, pinfield, 2) != 0) {
+	if (crypto_memcmp_s(pinblock, pinfield, 2) != 0) {
 		r = -3;
 		goto error;
 	}
