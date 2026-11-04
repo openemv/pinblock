@@ -2,7 +2,7 @@
  * @file pinblock.c
  * @brief ISO 9564-1:2017 PIN block format implementation
  *
- * Copyright 2022, 2025 Leon Lynch
+ * Copyright 2022, 2025-2026 Leon Lynch
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -182,7 +182,7 @@ static int pinblock_unpack_pin(
 	// For ISO 9564-1:2017 PIN block formats, the PIN starts at the second byte
 	// and padding is only up to the first 8 bytes (16 digits), even for PIN
 	// block format 4
-	for (size_t i = 0; i < 13; ++i) { // Iterate from 3rd digit to 16th digit
+	for (size_t i = 0; i < (PINBLOCK_SIZE - 1) * 2; ++i) { // Iterate from 3rd digit to 16th digit
 		uint8_t digit;
 
 		// Extract digit

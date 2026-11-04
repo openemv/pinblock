@@ -1,7 +1,7 @@
 /**
  * @file pinblock_format2_test.c
  *
- * Copyright 2022, 2025 Leon Lynch
+ * Copyright 2022, 2025-2026 Leon Lynch
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -149,6 +149,26 @@ int main(void)
 
 	printf("Test 6: Padding validation...\n");
 	pinblock[6] ^= 1;
+	r = pinblock_decode_iso9564_format2(
+		pinblock,
+		sizeof(pinblock),
+		decoded_pin,
+		&decoded_pin_len
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_decode_iso9564_format2() unexpectedly succeeded with bad PIN block\n");
+		r = 1;
+		goto exit;
+	}
+	if (decoded_pin_len != 0) {
+		fprintf(stderr, "Decoded PIN length is incorrect\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 7: Padding validation of last digit...\n");
+	pinblock[6] ^= 1;
+	pinblock[7] ^= 1;
 	r = pinblock_decode_iso9564_format2(
 		pinblock,
 		sizeof(pinblock),
