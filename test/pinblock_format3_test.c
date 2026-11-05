@@ -1,7 +1,7 @@
 /**
  * @file pinblock_format3_test.c
  *
- * Copyright 2022, 2025 Leon Lynch
+ * Copyright 2022, 2025-2026 Leon Lynch
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -49,6 +49,24 @@ static const uint8_t pan_invalid_digit[] = { 0x12, 0x34, 0x5A, 0x67, 0x89, 0x01,
 
 // Hand made example to test PAN with valid and invalid padding digits
 static const uint8_t pan_invalid_padding[] = { 0x12, 0x3F, 0x45, 0x67, 0x89, 0x01, 0x2F };
+
+// Hand made example to test 10-digit PAN (left padded PAN field)
+static const uint8_t pan_10digits[] = { 0x12, 0x34, 0x56, 0x78, 0x90 };
+static const uint8_t panfield_verify_10digits[] = { 0x00, 0x00, 0x00, 0x01, 0x23, 0x45, 0x67, 0x89 };
+
+// Hand made example to test 12-digit PAN with excessive padding (left padded PAN field)
+static const uint8_t pan_12digits[] = { 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0xFF };
+static const uint8_t panfield_verify_12digits[] = { 0x00, 0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x01 };
+
+// Hand made example to test 19-digit PAN with minimal padding
+static const uint8_t pan_19digits[] = { 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56, 0x78, 0x9F };
+static const uint8_t panfield_verify_19digits[] = { 0x00, 0x00, 0x78, 0x90, 0x12, 0x34, 0x56, 0x78 };
+
+// Hand made example to test 20-digit PAN
+static const uint8_t pan_20digits[] = { 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56, 0x78, 0x90 };
+
+// Hand made example to test 19-digit PAN with invalid digit before the 12 rightmost digits
+static const uint8_t pan_19digits_invalid_digit[] = { 0xA2, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56, 0x78, 0x9F };
 
 static void print_buf(const char* buf_name, const void* buf, size_t length)
 {
@@ -161,6 +179,82 @@ static int pinblock_iso9564_format3_verify(
 			if (digit < 0xA || digit > 0xF) {
 				// Invalid nonce padding digit
 				return 2;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int pinblock_iso9564_format3_verify_panfield(
+	const uint8_t* pinblock,
+	size_t pinblock_len,
+	const uint8_t* panfield,
+	size_t panfield_len,
+	const uint8_t* pin,
+	size_t pin_len
+)
+{
+	uint8_t pinfield[PINBLOCK_SIZE];
+	uint8_t format;
+	size_t decoded_pin_len;
+
+	if (pinblock_len != PINBLOCK_SIZE) {
+		// Invalid PIN block size
+		return 1;
+	}
+
+	if (panfield_len != PINBLOCK_SIZE) {
+		// Invalid PAN field size
+		return 2;
+	}
+
+	// Unmask plain text PIN field using expected PAN field
+	// See ISO 9564-1:2017 9.3.5.1
+	for (size_t i = 0; i < PINBLOCK_SIZE; ++i) {
+		pinfield[i] = pinblock[i] ^ panfield[i];
+	}
+
+	// First 4 bits are the control field indicating the PIN block format
+	// See ISO 9564-1:2017 9.3.1
+	format = pinfield[0] >> 4;
+	if (format != PINBLOCK_ISO9564_FORMAT_3) {
+		// Incorrect PIN block format
+		return 3;
+	}
+
+	// Second 4 bits indicate PIN length
+	// See ISO 9564-1:2017 9.3.5.2
+	decoded_pin_len = pinfield[0] & 0xF;
+	if (decoded_pin_len != pin_len) {
+		// Incorrect PIN length
+		return 4;
+	}
+
+	// Parse from the third nibble, which is where the PIN starts
+	for (size_t i = 2; i < PINBLOCK_SIZE * 2; ++i) {
+		uint8_t digit;
+
+		// Extract PIN field digit
+		if ((i & 0x1) == 0) { // Even digit index
+			// Most significant nibble
+			digit = pinfield[i >> 1] >> 4;
+		} else { // Odd digit index
+			// Least significant nibble
+			digit = pinfield[i >> 1] & 0xF;
+		}
+
+		if (i - 2 < pin_len) {
+			// Validate PIN digit
+			if (digit != pin[i - 2]) {
+				// Incorrect PIN digit
+				return 5;
+			}
+		} else {
+			// Validate fill digit
+			if (digit < 0xA) {
+				// Invalid fill digit
+				return 6;
 			}
 		}
 	}
@@ -397,6 +491,115 @@ int main(void)
 	);
 	if (r == 0) {
 		fprintf(stderr, "pinblock_encode_iso9564_format3() should have failed for PAN with digit after padding\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 13: PIN block encoding of 10-digit PAN...\n");
+	r = pinblock_encode_iso9564_format3(
+		pin,
+		sizeof(pin),
+		pan_10digits,
+		sizeof(pan_10digits),
+		pinblock
+	);
+	if (r) {
+		fprintf(stderr, "pinblock_encode_iso9564_format3() failed; r=%d\n", r);
+		goto exit;
+	}
+	r = pinblock_iso9564_format3_verify_panfield(
+		pinblock,
+		sizeof(pinblock),
+		panfield_verify_10digits,
+		sizeof(panfield_verify_10digits),
+		pin,
+		sizeof(pin)
+	);
+	if (r) {
+		fprintf(stderr, "pinblock_iso9564_format3_verify_panfield() failed; r=%d\n", r);
+		print_buf("pinblock", pinblock, sizeof(pinblock));
+		print_buf("panfield_verify_10digits", panfield_verify_10digits, sizeof(panfield_verify_10digits));
+		goto exit;
+	}
+
+	printf("Test 14: PIN block encoding of 12-digit PAN with excessive padding...\n");
+	r = pinblock_encode_iso9564_format3(
+		pin,
+		sizeof(pin),
+		pan_12digits,
+		sizeof(pan_12digits),
+		pinblock
+	);
+	if (r) {
+		fprintf(stderr, "pinblock_encode_iso9564_format3() failed; r=%d\n", r);
+		goto exit;
+	}
+	r = pinblock_iso9564_format3_verify_panfield(
+		pinblock,
+		sizeof(pinblock),
+		panfield_verify_12digits,
+		sizeof(panfield_verify_12digits),
+		pin,
+		sizeof(pin)
+	);
+	if (r) {
+		fprintf(stderr, "pinblock_iso9564_format3_verify_panfield() failed; r=%d\n", r);
+		print_buf("pinblock", pinblock, sizeof(pinblock));
+		print_buf("panfield_verify_12digits", panfield_verify_12digits, sizeof(panfield_verify_12digits));
+		goto exit;
+	}
+
+	printf("Test 15: PIN block encoding of 19-digit PAN with minimal padding...\n");
+	r = pinblock_encode_iso9564_format3(
+		pin,
+		sizeof(pin),
+		pan_19digits,
+		sizeof(pan_19digits),
+		pinblock
+	);
+	if (r) {
+		fprintf(stderr, "pinblock_encode_iso9564_format3() failed; r=%d\n", r);
+		goto exit;
+	}
+	r = pinblock_iso9564_format3_verify_panfield(
+		pinblock,
+		sizeof(pinblock),
+		panfield_verify_19digits,
+		sizeof(panfield_verify_19digits),
+		pin,
+		sizeof(pin)
+	);
+	if (r) {
+		fprintf(stderr, "pinblock_iso9564_format3_verify_panfield() failed; r=%d\n", r);
+		print_buf("pinblock", pinblock, sizeof(pinblock));
+		print_buf("panfield_verify_19digits", panfield_verify_19digits, sizeof(panfield_verify_19digits));
+		goto exit;
+	}
+
+	printf("Test 16: PAN encoding of 20-digit PAN...\n");
+	r = pinblock_encode_iso9564_format3(
+		pin,
+		sizeof(pin),
+		pan_20digits,
+		sizeof(pan_20digits),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format3() should have failed for 20-digit PAN\n");
+		r = 1;
+		goto exit;
+	}
+
+	printf("Test 17: PAN encoding of 19-digit PAN with invalid digit before the 12 rightmost digits...\n");
+	r = pinblock_encode_iso9564_format3(
+		pin,
+		sizeof(pin),
+		pan_19digits_invalid_digit,
+		sizeof(pan_19digits_invalid_digit),
+		pinblock
+	);
+	if (r == 0) {
+		fprintf(stderr, "pinblock_encode_iso9564_format3() should have failed for PAN with invalid digit before the 12 rightmost digits\n");
 		r = 1;
 		goto exit;
 	}

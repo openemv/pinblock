@@ -249,6 +249,7 @@ static int pinblock_pack_pan(
 	size_t panfield_len = PINBLOCK_SIZE;
 	size_t pan_idx = 0;
 	size_t panfield_idx = 0;
+	size_t pan_digit_count = 0;
 	bool check_digit_found = false;
 
 	// Pad using zeros
@@ -256,9 +257,9 @@ static int pinblock_pack_pan(
 	// See ISO 9564-1:2017 9.3.5.3
 	memset(panfield, 0, PINBLOCK_SIZE);
 
-	// Pack 12 digits of PAN, excluding padding and check digit, starting with
-	// the rightmost byte
-	while (pan_len > 0 && panfield_len > 0 && panfield_idx < 12) {
+	// Validate all PAN digits and pack 12 rightmost digits of PAN, excluding
+	// padding and check digit, starting with the rightmost byte
+	while (pan_len > 0) {
 		uint8_t digit;
 
 		// Extract PAN digit
@@ -286,6 +287,7 @@ static int pinblock_pack_pan(
 
 			// Skip over check digit
 			check_digit_found = true;
+			++pan_digit_count;
 			continue;
 
 		} else {
@@ -294,6 +296,16 @@ static int pinblock_pack_pan(
 				// Invalid PAN digit
 				return 2;
 			}
+		}
+
+		// Valid PAN digit
+		++pan_digit_count;
+
+		// Skip over digits beyond 12 rightmost digits, excluding check digit
+		// See ISO 9564-1:2017 9.3.2.3
+		// See ISO 9564-1:2017 9.3.5.3
+		if (panfield_idx >= 12) {
+			continue;
 		}
 
 		// Pack digit into PAN field
@@ -315,10 +327,10 @@ static int pinblock_pack_pan(
 	// However, ISO 7812 specifies that PANs are 10 - 19 digits and the number
 	// of available PAN digits may impact the PAN encoding. It is therefore
 	// reasonable to reject invalid PAN lengths.
-	if (panfield_idx < 10) {
+	if (pan_digit_count < 10) {
 		return 3;
 	}
-	if (panfield_idx > 19) {
+	if (pan_digit_count > 19) {
 		return 4;
 	}
 
@@ -908,8 +920,7 @@ int pinblock_encode_iso9564_format4_panfield(
 			}
 
 			// Pack digit into PAN field
-			// See ISO 9564-1:2017 9.3.2.3
-			// See ISO 9564-1:2017 9.3.5.3
+			// See ISO 9564-1:2017 9.4.2.2.3
 			if ((panfield_idx & 0x1) == 0) { // Even digit index
 				// Most significant nibble
 				panfield[panfield_idx >> 1] |= (digit << 4);
